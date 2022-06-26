@@ -22,7 +22,7 @@ train_augs = T.Compose([
 
 test_augs = T.Compose([
     # T.ToPILImage(),
-    # T.Resize(256),
+    # T.Resize(1024),
     T.ToTensor()])
 
 ######################################################
@@ -195,8 +195,9 @@ class ImgCls(Dataset):
                 self.y = y[int(num * 8 / 10):]
 
         elif partition == "test":
-            x = pd.read_csv(os.path.join(self.path, "test.csv")).values
-            self.x = x.flatten()
+            # x = pd.read_csv(os.path.join(self.path, "test.csv")).values
+            self.x = np.array(["..\\..\\orc30.png"])
+            # self.x = np.array(["original\\or14.jpg"])
             self.y = None
         else:
             raise Exception("Not implemented")

@@ -42,6 +42,7 @@ class simpleLinear(nn.Module):
 
 
 class ResNet18(nn.Module):
+    "11,181,642 parameters"
     def __init__(self, input_channels=3, n_category=10, pretrained=True):
         # input_dimension doesn't matter
         super().__init__()
@@ -54,16 +55,19 @@ class ResNet18(nn.Module):
 
 
 class AlexNet(nn.Module):
+    "57,044,810 parameter"
     def __init__(self, input_channels=3, n_category=10, pretrained=True):
         super().__init__()
         self.net = models.alexnet(pretrained=pretrained)
         self.net.classifier[6] = nn.Linear(self.net.classifier[6].in_features, n_category, bias=True)
         nn.init.xavier_uniform_(self.net.classifier[6].weight)
+        print(self.net)
     def forward(self, x):
         y = self.net(x)
         return y
 
 class VGG(nn.Module):
+    "128,807,306 parameters"
     def __init__(self, input_channels=3, n_category=10, pretrained=True):
         super().__init__()
         self.net = models.vgg11(pretrained=pretrained)
@@ -73,6 +77,7 @@ class VGG(nn.Module):
         y = self.net(x)
         return y
 class GoogLeNet(nn.Module):
+    "5,610,154 parameters"
     def __init__(self, input_channels=3, n_category=10, pretrained=True):
         super().__init__()
         self.net = models.googlenet(pretrained=pretrained)
@@ -82,10 +87,35 @@ class GoogLeNet(nn.Module):
     def forward(self, x):
         y = self.net(x)
         return y
+
+class MobileNetV2(nn.Module):
+    "2,236,682 parameters"
+    def __init__(self, input_channels=3, n_category=10, pretrained=True):
+        super().__init__()
+        self.net = models.mobilenet_v2(pretrained=pretrained)
+        self.net.classifier[1] = nn.Linear(self.net.classifier[1].in_features, n_category, bias=True)
+        nn.init.xavier_uniform_(self.net.classifier[1].weight)
+    def forward(self, x):
+        y = self.net(x)
+        return y
+def get_n_params(model):
+    pp=0
+    for p in list(model.parameters()):
+        nn=1
+        for s in list(p.size()):
+            nn = nn*s
+        pp += nn
+    return pp
+# class 
 if __name__ == "__main__":
-    import data
+    # import data
     # vgg = VGG()
-    google = GoogLeNet()
+    # google = GoogLeNet()
+    # alex = AlexNet()
+    # res = ResNet18()
+    # mobile = MobileNetV2()
+    # print(get_n_params(mobile))
+    alex = AlexNet()
     # resnet = models.resnet18(pretrained=True)
     # print(resnet)
     # raise Exception("break")
