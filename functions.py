@@ -15,7 +15,7 @@ def CEloss(y_orig, y):
     # z = - y_pred[torch.arange(y_pred.shape[0]), y.type(torch.int64)]
     # z = torch.sum(z_mid)
     # z /= y_pred.shape[0]
-    if z == torch.inf or z > 1e20:
+    if z > 1e20:
         print(y_orig)
         print(y_pred)
         print(y)

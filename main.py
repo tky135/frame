@@ -20,7 +20,7 @@ acc_fn = class_acc
 DATASET = ImgCls
 ############ MODEL #################
 def get_model():
-    return AlexNet(input_channels=3, n_category=4, pretrained=True)
+    return GoogLeNet(input_channels=3, n_category=4, pretrained=True)
 ####################################
 
 
@@ -51,7 +51,7 @@ def train(args, log):
     # optimizer = optim.Adam([{'params': orig_para, 'lr': args.lr}, {'params': model.module.net.classifier[6].parameters(), 'lr': args.lr * 10}], lr=args.lr, weight_decay=args.weight_decay)
 
     # General
-    optimizer = optim.SGD(model.parameters(), lr=args.lr, weight_decay=args.weight_decay, momentum=0.9)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
 
     # decrease learning rate to 0.1 of itself at the end of training
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.1 ** (1 / args.epochs))
