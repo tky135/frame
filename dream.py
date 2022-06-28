@@ -3,19 +3,26 @@ from model import*
 import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
-def deep_dream(model, saved_model_path, img_size, prior="blank", n_epochs=1500, lr=1):
+import torchvision.transforms as T
+from PIL import Image as Image
+import torchvision.models as models
+def deep_dream(model, saved_model_path, img_size, prior="given", n_epochs=500, lr=1):
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    model = models.resnet18(True)
     model = torch.nn.DataParallel(model)
-    state_dict = torch.load(saved_model_path)
-    model.load_state_dict(state_dict)
+    # state_dict = torch.load(saved_model_path)
+    # model.load_state_dict(state_dict)
     model = model.to(device)
     if prior == "normal":
         dream_img = 0.5 * torch.randn((1, 3, img_size, img_size), requires_grad=True, device=device)
     elif prior == "blank":
         dream_img = 0.5 * torch.ones((1, 3, img_size, img_size), requires_grad=True, device=device)
     elif prior == "given":
-        dream_img = torch.tensor(plt.imread("s2_10.jpg"), requires_grad=True, dtype=torch.float32, device=device) / 255
-        dream_img = dream_img.unsqueeze(0).permute(0, 3, 1, 2)
+        dream_img = Image.open("cloud.jpg")
+        transforms = T.Compose([T.Resize(224), T.ToTensor()])
+        dream_img = transforms(dream_img)
+        dream_img = dream_img.unsqueeze(0)
+        print(dream_img.shape)
     elif prior == "blue":
         dream_img = torch.zeros((1, 3, img_size, img_size), device=device)
         dream_img[0, 2, :, :] = 1
@@ -28,12 +35,20 @@ def deep_dream(model, saved_model_path, img_size, prior="blank", n_epochs=1500, 
         #     dream_img[0, 2]  = dream_img[0, 0]
         dream_img = dream_img.detach()
         dream_img.requires_grad_()
-        # y = model(dream_img)[0][0]
-        # layer = model.module.net.layer4[1].conv2
-        layer = model.module.net.fc
+
+        # resnet18
+        # layer = model.module.net.layer4[0].conv2
+        layer = model.module.fc
+
+        # mobilenet
+        # layer = model.module.net.features[6].conv[1][0]
+
+        # VGG
+        # layer = model.module.net.features[18]
+
         hook = Hook(layer)
         y = model(dream_img)
-        loss = hook.output[0,0].norm()
+        loss = hook.output[0,20].norm()
         
         # print(y.shape)
         
@@ -79,4 +94,5 @@ class Hook():
 
 if __name__ == "__main__":
     model = ResNet18(3, 4, True)
-    deep_dream(model, "outputs/lung_resnet18/model.t7", 224)
+    print(model)
+    deep_dream(model, "outputs/lung_mobilenet/model.t7", 224)
