@@ -13,14 +13,14 @@ from model import *
 from data import MNIST, HousePrice, ImgCls, leaf_dict
 from functions import acc_fn, RMSElog, CEloss, class_acc
 
-############ EVALUATION ############
+############ VALIDATION ############
 loss_fn = CEloss
 acc_fn = class_acc
 ############ DATA SET ##############
 DATASET = ImgCls
 ############ MODEL #################
 def get_model():
-    return AlexNet(input_channels=3, n_category=4, pretrained=True)
+    return ResNet18(input_channels=3, n_category=4, pretrained=True)
 ####################################
 
 
@@ -30,7 +30,8 @@ def train(args, log):
     print(device)
 
     # set train dataloader
-    train_loader = DataLoader(DATASET(partition="train"), batch_size=args.batch_size, shuffle=True, drop_last=False)
+    train_loader = DataLoader(DATASET(partition="train", args=args), batch_size=args.batch_size, shuffle=True, drop_last=False)
+    val_loader = DataLoader(DATASET(partition="val", args=args), batch_size=args.batch_size, shuffle=False, drop_last=False)
 
     # set model
 
@@ -51,7 +52,7 @@ def train(args, log):
     # optimizer = optim.Adam([{'params': orig_para, 'lr': args.lr}, {'params': model.module.net.classifier[6].parameters(), 'lr': args.lr * 10}], lr=args.lr, weight_decay=args.weight_decay)
 
     # General
-    optimizer = optim.SGD(model.parameters(), lr=args.lr, weight_decay=args.weight_decay, momentum=0.9)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, weight_decay=args.weight_decay, momentum=args.momentum)
 
     # decrease learning rate to 0.1 of itself at the end of training
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.1 ** (1 / args.epochs))
@@ -102,10 +103,10 @@ def train(args, log):
 
         # scheduler step
         scheduler.step()
-        # eval at the end of each epoch
-        avg_ev_loss, avg_ev_acc = eval(args, log, model)
-        avg_tr_acc /= len(train_dataset)
-        avg_tr_loss /= len(train_dataset)
+        # val at the end of each epoch
+        avg_ev_loss, avg_ev_acc = val(args, log, model, val_loader)
+        avg_tr_acc /= len(train_loader.dataset)
+        avg_tr_loss /= len(train_loader.dataset)
 
         # log all metrics at each epoch
         log.write("\ttr_loss: " + "%.4f" % avg_tr_loss)
@@ -134,34 +135,27 @@ def train(args, log):
     acc_plt = fig.add_subplot(122)
     x = np.arange(args.epochs)
     loss_plt.plot(x, tr_loss_l, 'r', label="train")
-    loss_plt.plot(x, ev_loss_l, 'b', label="eval")
+    loss_plt.plot(x, ev_loss_l, 'b', label="val")
     loss_plt.title.set_text("Loss wrt Epoch")
     loss_plt.legend()
     acc_plt.plot(x, tr_acc_l, 'r', label="train")
-    acc_plt.plot(x, ev_acc_l, 'b', label="eval")
+    acc_plt.plot(x, ev_acc_l, 'b', label="val")
     acc_plt.title.set_text("Accuracy wrt Epoch")
     acc_plt.legend()
     path = "outputs\\" + args.exp_name + "\\train.png" if os.name == "nt" else "outputs/" + args.exp_name + "/train.png"
     plt.savefig(path)
     plt.show()
 
-    log.write("\nBest eval acc: " + "%.4f" % best_acc + "\n")
+    log.write("\nBest val acc: " + "%.4f" % best_acc + "\n")
 
 
-def eval(args, log, in_model, read_from_path=False):
+def val(args, log, in_model, val_loader):
     device = torch.device("cuda" if (args.cuda and torch.cuda.is_available()) else "cpu")
-    if read_from_path:
-        model = get_model()
-        if device != torch.device("cpu"):
-            model = nn.DataParallel(model)
-        model_path = "outputs/" + args.exp_name + "/model.t7"
-        model.load_state_dict(torch.load(model_path))
-    else:
-        model = in_model
-        # set eval dataloader
-    eval_loader = DataLoader(DATASET(partition="eval"), batch_size=args.batch_size, shuffle=False)
+    model = in_model
+        # set val dataloader
+    # val_loader = DataLoader(DATASET(partition="val", args=args), batch_size=args.batch_size, shuffle=False)
 
-    # set model to eval
+    # set model to val
     model.eval()
 
     # set display and monitor list
@@ -169,7 +163,7 @@ def eval(args, log, in_model, read_from_path=False):
     avg_ev_acc = 0
 
     with torch.no_grad():
-        for x, y in eval_loader:
+        for x, y in val_loader:
             # move to device
             x = x.to(device)
             y = y.to(device)
@@ -182,13 +176,57 @@ def eval(args, log, in_model, read_from_path=False):
             avg_ev_loss += loss.item() * y.shape[0]
             avg_ev_acc += acc.item() * y.shape[0]
 
-    avg_ev_loss /= len(eval_dataset)
-    avg_ev_acc /= len(eval_dataset)
+    avg_ev_loss /= len(val_loader.dataset)
+    avg_ev_acc /= len(val_loader.dataset)
     # set model back to train
     model.train()
-    # return evaluation loss and other metrics
-    print("evaluation: ", avg_ev_loss, avg_ev_acc)
+    # return valuation loss and other metrics
+    print("validation: ", avg_ev_loss, avg_ev_acc)
     return avg_ev_loss, avg_ev_acc
+
+
+def test(args):
+    device = torch.device("cuda" if (args.cuda and torch.cuda.is_available()) else "cpu")
+
+    model = get_model()
+    if device != torch.device("cpu"):
+        model = nn.DataParallel(model)
+    model_path = "outputs/" + args.exp_name + "/model.t7"
+    model.load_state_dict(torch.load(model_path))
+
+        # set val dataloader
+    test_loader = DataLoader(DATASET(partition="test", args=args), batch_size=args.batch_size, shuffle=False)
+
+    # set model to val
+    model.eval()
+
+    # set display and monitor list
+    avg_ev_loss = 0
+    avg_ev_acc = 0
+
+    with torch.no_grad():
+        for x, y in test_loader:
+            # move to device
+            x = x.to(device)
+            y = y.to(device)
+
+            # forward pass
+            y_pred = model(x)
+            loss = loss_fn(y_pred, y)
+            acc = acc_fn(y_pred, y)
+            
+            avg_ev_loss += loss.item() * y.shape[0]
+            avg_ev_acc += acc.item() * y.shape[0]
+
+    avg_ev_loss /= len(test_loader.dataset)
+    avg_ev_acc /= len(test_loader.dataset)
+    # set model back to train
+    model.train()
+    # return valuation loss and other metrics
+    print("testing: ", avg_ev_loss, avg_ev_acc)
+    return avg_ev_loss, avg_ev_acc
+
+
 
 def inference(args):
 
@@ -199,18 +237,18 @@ def inference(args):
     model_path = "outputs/" + args.exp_name + "/model.t7"
     model.load_state_dict(torch.load(model_path))
     model.eval()
-    test_dataset = DATASET(partition="test")
-    test_loader = DataLoader(test_dataset, batch_size=args.batch_size, shuffle=False, drop_last=False)
+    inf_dataset = DATASET(partition="inf", args=args)
+    inf_loader = DataLoader(inf_dataset, batch_size=args.batch_size, shuffle=False, drop_last=False)
 
 
     f = open("outputs/" + args.exp_name + "/test_result.csv", 'w')
 
-    _, inverse_dict = test_dataset.get_mapping()
+    _, inverse_dict = inf_dataset.get_mapping()
     # raise Exception("break")
     # construct 
     with torch.no_grad():
         count = 18353
-        for x in test_loader:
+        for x in inf_loader:
             x = x.to(device)
             y_pred = model(x)
             print(y_pred)
@@ -237,7 +275,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--exp_name", type=str, default="exp")
     parser.add_argument("--cuda", type=bool, default=False)
-    parser.add_argument("--lr", type=float, default=1e-2 / 4)
+    parser.add_argument("--lr", type=float, default=1e-2)
     parser.add_argument("--momentum", type=float, default=0.9)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--epochs", type=int, default=200)
@@ -270,15 +308,15 @@ if __name__ == "__main__":
         torch.manual_seed(42)
         np.random.seed(42)
         # torch.use_deterministic_algorithms(True)
-    if args.exp_type == "test":
-    # experiment
+    elif not os.path.exists(os.path.join("outputs", args.exp_name)):
+            raise Exception("Must train first")
+    if args.exp_type == "inf":
         inference(args)
-    elif args.exp_type == "eval":
-        # train_dataset = DATASET(partition="train")
-        eval_dataset = DATASET(partition="eval")
-        eval(args, None, None, True)
+    elif args.exp_type == "test":
+    # experiment
+        test(args)
+    elif args.exp_type == "val":
+        val(args, None, None, True)
     else:
-        train_dataset = DATASET(partition="train")
-        eval_dataset = DATASET(partition="eval")
         train(args, log)
 

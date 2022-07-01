@@ -13,7 +13,7 @@ def getData():
     mnist_train = torchvision.datasets.FashionMNIST(root="dataset", train=False, download=True)
 def procHouse(x, partition="train"):
     y = None
-    if partition == "train" or partition == "eval":
+    if partition == "train" or partition == "val":
         y = x["Sold Price"]
         y = (y - y.mean()) / y.std()
         x = x.drop(["Sold Price", "Id"], axis=1)
@@ -62,12 +62,25 @@ def pred2l(partition):
     all_features = all_features[features]
     all_features = pd.get_dummies(all_features, dummy_na=True)
 
-    if partition == "train" or partition == "eval":
+    if partition == "train" or partition == "val":
         return all_features[:train_data.shape[0]].values.astype(np.float32), y.values.astype(np.float32)
     else:
         return all_features[train_data.shape[0]:].values.astype(np.float32)
+def split_train_val_test_csv(data_folder, train_ratio=0.8, val_ratio=0.1, test_ratio=0.1):
+    if train_ratio + val_ratio + test_ratio != 1:
+        raise Exception("train ratio + val ratio + test ratio should be 1")
+    if not os.path.exists(os.path.join(data_folder, "all.csv")):
+        generate_all_csv(data_folder)
+    all_df = pd.read_csv(os.path.join(data_folder, "all.csv"))
+    all_df = all_df.sample(frac=1).reset_index(drop=True)
+    # print(all_df.info)
+    length = all_df.shape[0]
+    all_df.iloc[:int(train_ratio * length), :].to_csv(os.path.join(data_folder, "train.csv"))
+    all_df.iloc[int(train_ratio * length) : int((train_ratio + val_ratio) * length), :].to_csv(os.path.join(data_folder, "val.csv"))
+    all_df.iloc[int((train_ratio + val_ratio) * length): , :].to_csv(os.path.join(data_folder, "test.csv"))
+    
 
-def reformat_class_folder(data_folder):
+def generate_all_csv(data_folder):
     """
     Generate a csv file for all the images with columns:
 
@@ -79,7 +92,7 @@ def reformat_class_folder(data_folder):
     TODO: Make this more "intelligent"
 
     """
-    train_file = open(os.path.join(data_folder, "train.csv"), "w")
+    train_file = open(os.path.join(data_folder, "all.csv"), "w")
     train_file.write("image,label\n")
     for myclass in os.listdir(data_folder):
         class_folder = os.path.join(data_folder, myclass)
@@ -98,4 +111,5 @@ def reformat_class_folder(data_folder):
 
 
 if __name__ == "__main__":
-    reformat_class_folder(os.path.join("dataset", "lung"))
+    generate_all_csv(os.path.join("dataset", "lung"))
+    split_train_val_test_csv(os.path.join("dataset", "lung"))
