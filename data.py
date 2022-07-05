@@ -164,12 +164,12 @@ class ImgCls(Dataset):
     def __init__(self, partition, args) -> None:
         super().__init__()
         self.partition = partition
-
+        self.args = args
         # root path of the dataset
         self.path = os.path.join("dataset", dataset)
         if partition == "inf":
             # x = pd.read_csv(os.path.join(self.path, "test.csv")).values
-            self.x = np.array(["orc30.png"])
+            self.x = np.array(["step2/s2_417.jpg"])
             # self.x = np.array(["original\\or14.jpg"])
             self.y = None
         else:
@@ -232,22 +232,24 @@ class ImgCls(Dataset):
         return self.x.shape[0]
 
     def get_mapping(self):
-        if self.label2int == None:
-            x = pd.read_csv(os.path.join(self.path, "all.csv"))
-            # convert category strings into unique
-            cifar_types = x["label"].unique()
-            ImgCls.label2int = dict(zip(cifar_types, range(len(cifar_types))))
-            ImgCls.int2label = dict(zip(range(len(cifar_types)), cifar_types))
-        return ImgCls.label2int, ImgCls.int2label
+        dict_file = os.path.join(os.path.join("outputs", self.args.exp_name), "dictionary.json")
+        if not os.path.exists(dict_file):
+            raise Exception("dictionary.json file must be created by the train experiment")
+        with open(dict_file, "r") as f:
+            dictionary = json.load(f)
+        return dictionary
         
 
 if __name__ == "__main__":
-    dset = ImgCls("train")
-    print(dset[3][0].shape)
-    print(dset[3][1])
-    # plt.imshow(dset[0][0].permute(1, 2, 0))
-    # plt.imshow(dset[1][0].permute(1, 2, 0))
-    # plt.imshow(dset[2][0].permute(1, 2, 0))
-    plt.imshow(dset[3][0].permute(1, 2, 0))
-    plt.show()
+    dset_train = ImgCls("train", None)
+    dset_test = ImgCls("test", None)
+    dset_val = ImgCls("val", None)
+    print(set(dset_train))
+    # print(dset[3][0].shape)
+    # print(dset[3][1])
+    # # plt.imshow(dset[0][0].permute(1, 2, 0))
+    # # plt.imshow(dset[1][0].permute(1, 2, 0))
+    # # plt.imshow(dset[2][0].permute(1, 2, 0))
+    # plt.imshow(dset[3][0].permute(1, 2, 0))
+    # plt.show()
     

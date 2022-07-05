@@ -66,7 +66,11 @@ def pred2l(partition):
         return all_features[:train_data.shape[0]].values.astype(np.float32), y.values.astype(np.float32)
     else:
         return all_features[train_data.shape[0]:].values.astype(np.float32)
+
+
+
 def split_train_val_test_csv(data_folder, train_ratio=0.8, val_ratio=0.1, test_ratio=0.1):
+
     if train_ratio + val_ratio + test_ratio != 1:
         raise Exception("train ratio + val ratio + test ratio should be 1")
     if not os.path.exists(os.path.join(data_folder, "all.csv")):
@@ -112,4 +116,4 @@ def generate_all_csv(data_folder):
 
 if __name__ == "__main__":
     generate_all_csv(os.path.join("dataset", "lung"))
-    split_train_val_test_csv(os.path.join("dataset", "lung"))
+    split_train_val_test_csv(os.path.join("dataset", "lung"), train_ratio=1, val_ratio=0, test_ratio=0)

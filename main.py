@@ -104,28 +104,34 @@ def train(args, log):
         # scheduler step
         scheduler.step()
         # val at the end of each epoch
-        avg_ev_loss, avg_ev_acc = val(args, log, model, val_loader)
         avg_tr_acc /= len(train_loader.dataset)
         avg_tr_loss /= len(train_loader.dataset)
 
         # log all metrics at each epoch
         log.write("\ttr_loss: " + "%.4f" % avg_tr_loss)
         log.write("\ttr_acc: " + "%.4f" % avg_tr_acc)
-        log.write("\tev_loss: " + "%.4f" % avg_ev_loss)
-        log.write("\tev_acc: " + "%.4f" % avg_ev_acc)
 
         # add metrics to global list for displaying
         tr_loss_l.append(avg_tr_loss)
         tr_acc_l.append(avg_tr_acc)
-        ev_loss_l.append(avg_ev_loss)
-        ev_acc_l.append(avg_ev_acc)
 
-        # update best model
-        if avg_ev_acc > best_acc:
-            best_acc = avg_ev_acc
+        if not len(val_loader.dataset) == 0 or not args.no_val:
+            avg_ev_loss, avg_ev_acc = val(args, log, model, val_loader)
+            log.write("\tev_loss: " + "%.4f" % avg_ev_loss)
+            log.write("\tev_acc: " + "%.4f" % avg_ev_acc)
+            ev_loss_l.append(avg_ev_loss)
+            ev_acc_l.append(avg_ev_acc)
+            if avg_ev_acc > best_acc:
+                best_acc = avg_ev_acc
+                path = ("outputs\\" + args.exp_name + "\\model.t7") if os.name == "nt" else ("outputs/" + args.exp_name + "/model.t7")
+                torch.save(model.state_dict(), path)
+                log.write("model saved. ")
+        else:
             path = ("outputs\\" + args.exp_name + "\\model.t7") if os.name == "nt" else ("outputs/" + args.exp_name + "/model.t7")
             torch.save(model.state_dict(), path)
             log.write("model saved. ")
+
+        # update best model
         log.write("\n")
         log.flush()
 
@@ -281,6 +287,7 @@ if __name__ == "__main__":
     parser.add_argument("--epochs", type=int, default=200)
     parser.add_argument("--weight_decay", type=float, default=1e-4)
     parser.add_argument("--exp_type", type=str, default="train")
+    parser.add_argument("--no_val", type=bool, default=False)
     args = parser.parse_args()
 
 
