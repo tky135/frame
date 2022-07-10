@@ -19,11 +19,12 @@ train_augs = T.Compose([
     # T.RandomVerticalFlip(),
     # T.ToPILImage(),
     # T.Resize(256),
+    # T.Resize(224),
     T.ToTensor()])
 
 test_augs = T.Compose([
     # T.ToPILImage(),
-    # T.Resize(1024),
+    T.Resize(224),
     T.ToTensor()])
 
 ######################################################
@@ -85,73 +86,6 @@ class HousePrice(Dataset):
     def __len__(self):
         return self.x.shape[0]
 
-# shared variable across
-leaf_dict = [None]
-class Leaf(Dataset):
-
-    def __init__(self, partition):
-        global leaf_dict
-        super().__init__()
-        self.path = os.path.join("dataset", "Leaf")
-        self.partition = partition
-        if partition == "train" or partition == "val":
-            x = pd.read_csv(os.path.join(self.path, "train.csv"))
-
-            # convert category strings into unique
-            leaf_types = x["label"].unique()
-            leaf_dict = dict(zip(leaf_types, range(len(leaf_types))))
-            x = x.replace(leaf_dict)
-
-            y = x["label"].values
-            x = x["image"].values
-
-            # randomly shuffle indices
-            num = y.shape[0]
-            indices = np.arange(num)
-            np.random.seed(42)
-            new_indices = np.random.choice(indices, num, replace=False)
-            x = x[new_indices]
-            y = y[new_indices]
-            print(y[:10])
-
-            if partition == "train":
-                self.x = x[0:int(num * 9 / 10)]
-                self.y = y[0:int(num * 9 / 10)]
-            elif partition == "val":
-                self.x = x[int(num * 9 / 10):]
-                self.y = y[int(num * 9 / 10):]
-            
-            # read images into memory (too slow)
-            # x = []
-            # for i in range(self.x.shape[0]):
-            #     x.append(torch.tensor(image.imread(os.path.join(self.path, self.x[i]))).unsqueeze(0))
-            # self.x = torch.cat(x, axis=0)
-            # print(self.x.shape)
-
-        elif partition == "test":
-            x = pd.read_csv(os.path.join(self.path, "train.csv"))
-
-            # convert category strings into unique
-            leaf_types = x["label"].unique()
-            leaf_dict[0] = dict(zip(leaf_types, range(len(leaf_types))))
-            x = pd.read_csv("dataset/Leaf/test.csv").values
-            self.x = x.flatten()
-            self.y = None
-            
-        else:
-            raise Exception("Not implemented")
-
-    def __getitem__(self, idx):
-        x = Image.open(os.path.join(self.path, self.x[idx]))
-
-        if self.partition == "train" or self.partition == "val":
-            y = self.y[idx]
-            return train_augs(x), y
-        else:
-            return test_augs(x)
-    def __len__(self):
-        return self.x.shape[0]
-
 class ImgCls(Dataset):
 
     """
@@ -161,15 +95,15 @@ class ImgCls(Dataset):
     """
     label2int = None
     int2label = None
-    def __init__(self, partition, args) -> None:
+    def __init__(self, partition, config) -> None:
         super().__init__()
         self.partition = partition
-        self.args = args
+        self.config = config
         # root path of the dataset
         self.path = os.path.join("dataset", dataset)
         if partition == "inf":
             # x = pd.read_csv(os.path.join(self.path, "test.csv")).values
-            self.x = np.array(["step2/s2_417.jpg"])
+            self.x = np.array(os.listdir("dataset/lung"))
             # self.x = np.array(["original\\or14.jpg"])
             self.y = None
         else:
@@ -179,7 +113,7 @@ class ImgCls(Dataset):
 
             # convert string labels to ints
             # give one standard to label2int and int2label
-            dict_file = os.path.join(os.path.join("outputs", args.exp_name), "dictionary.json")
+            dict_file = os.path.join(os.path.join("experiments", config["exp_name"]), "dictionary.json")
             if partition == "train" and not os.path.exists(dict_file):
                 cifar_types = df["label"].unique()
                 dictionary = {"label2int" : dict(zip(cifar_types, range(len(cifar_types)))), "int2label" : dict(zip(range(len(cifar_types)), cifar_types))}
@@ -226,13 +160,14 @@ class ImgCls(Dataset):
             y = self.y[index]
             return test_augs(x), y
         elif self.partition == "inf":
+            print(self.x[index])
             x = Image.open(os.path.join(self.path, self.x[index]))
             return test_augs(x)
     def __len__(self):
         return self.x.shape[0]
 
     def get_mapping(self):
-        dict_file = os.path.join(os.path.join("outputs", self.args.exp_name), "dictionary.json")
+        dict_file = os.path.join(os.path.join("experiments", self.config["exp_name"]), "dictionary.json")
         if not os.path.exists(dict_file):
             raise Exception("dictionary.json file must be created by the train experiment")
         with open(dict_file, "r") as f:

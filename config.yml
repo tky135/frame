@@ -1,0 +1,36 @@
+#### general
+
+exp_type:
+  train
+model:
+  GoogLeNet
+dataset:
+  lung
+cuda:
+  # if True, try to use GPU, else use CPU
+  True
+train_val_test_ratio:
+  [0.8, 0.1, 0.1]
+do_split:
+  # if True, discard previous train val test split(if any) and split 
+  True
+exp_name:
+  # name of the experiment
+epochs:
+  50
+force:
+  False
+  
+#### train
+lr:
+  1e-2
+momentum:
+  0.9
+weight_decay:
+  1e-4
+batch_size:
+  32
+validate:
+  # if True, do validation at the end of each epoch
+  True
+

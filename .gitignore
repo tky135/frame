@@ -1,5 +1,8 @@
 __pycache__
 dataset
-outputs
+experiments
 d2l.py
 temp*
+*.out
+.vscode
+history

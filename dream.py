@@ -95,4 +95,4 @@ class Hook():
 if __name__ == "__main__":
     model = ResNet18(3, 4, True)
     print(model)
-    deep_dream(model, "outputs/lung_mobilenet/model.t7", 224)
+    deep_dream(model, "experiments/lung_mobilenet/model.t7", 224)

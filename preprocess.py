@@ -73,8 +73,7 @@ def split_train_val_test_csv(data_folder, train_ratio=0.8, val_ratio=0.1, test_r
 
     if train_ratio + val_ratio + test_ratio != 1:
         raise Exception("train ratio + val ratio + test ratio should be 1")
-    if not os.path.exists(os.path.join(data_folder, "all.csv")):
-        generate_all_csv(data_folder)
+    generate_all_csv(data_folder)
     all_df = pd.read_csv(os.path.join(data_folder, "all.csv"))
     all_df = all_df.sample(frac=1).reset_index(drop=True)
     # print(all_df.info)
@@ -110,10 +109,22 @@ def generate_all_csv(data_folder):
     train_file.close()
 
 
+def split_folder(data_folder="dataset/lung"):
+    for name in ['original', 'step1', 'step2', 'step3']:
+        class_folder = os.path.join(data_folder, name)
+        os.mkdir("/home/tky135/Desktop/test/" + name)
+        class_list = os.listdir(class_folder)
+        np.random.shuffle(class_list)
+        
+        for i in class_list[:40]:
+            file_path = os.path.join(class_folder, i)
+            os.system("mv " + file_path + " " + "/home/tky135/Desktop/test/" + name)
+
 
 
 
 
 if __name__ == "__main__":
+    # split_folder()
     generate_all_csv(os.path.join("dataset", "lung"))
-    split_train_val_test_csv(os.path.join("dataset", "lung"), train_ratio=1, val_ratio=0, test_ratio=0)
+    split_train_val_test_csv(os.path.join("dataset", "lung"), train_ratio=0, val_ratio=0, test_ratio=1)
