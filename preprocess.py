@@ -4,71 +4,9 @@
 import numpy as np
 import pandas as pd
 import os
-def cvtFloatImg(x):
-    return x.astype(np.float32)/255
-
-
-def getData():
-    import torchvision
-    mnist_train = torchvision.datasets.FashionMNIST(root="dataset", train=False, download=True)
-def procHouse(x, partition="train"):
-    y = None
-    if partition == "train" or partition == "val":
-        y = x["Sold Price"]
-        y = (y - y.mean()) / y.std()
-        x = x.drop(["Sold Price", "Id"], axis=1)
-    else:
-        x = x.drop(["Id"], axis=1)
-
-    x = x.select_dtypes(np.number)
-    for col in x.columns:
-        x[col].fillna(x[col].mode()[0], inplace=True)
-        # if col != ""
-        x[col] -= x[col].mean()
-        x[col] /= x[col].std()
-    mis_val = x.isna().sum().sort_values(ascending=False)
-    mis_val = len(mis_val[mis_val != 0].index)
-    print("NaN value: ", mis_val)
-    return x.values.astype(np.float32), y.values.astype(np.float32)
-def pred2l(partition):
-    train_data = pd.read_csv("dataset/HousePrice/train.csv")
-    test_data = pd.read_csv("dataset/HousePrice/test.csv")
-
-    redundant_cols = ['Address', 'Summary', 'City', 'State', 'Zip']
-    test_data.drop(redundant_cols, axis=1, inplace=True)
-    train_data.drop(redundant_cols, axis=1, inplace=True)
-
-    large_vel_cols = ['Lot', 'Total interior livable area', 'Tax assessed value', 'Annual tax amount', 'Listed Price', 'Last Sold Price']
-    for c in large_vel_cols:
-        train_data[c] = np.log(train_data[c]+1)
-        test_data[c] = np.log(test_data[c]+1)
-    
-    y = train_data["Sold Price"]
-    train_data.drop(["Sold Price"], axis=1, inplace=True)
-
-    all_features = pd.concat((train_data, test_data), axis=0)
-    all_features.drop(["Id"], axis=1, inplace=True)
-
-    numeric_features = all_features.dtypes[all_features.dtypes != 'object'].index
-    all_features[numeric_features] = all_features[numeric_features].apply(
-        lambda x: (x - x.mean()) / (x.std()))
-    all_features[numeric_features] = all_features[numeric_features].fillna(0)
-
-    # for in_object in all_features.dtypes[all_features.dtypes=='object'].index:
-    #     print(in_object.ljust(20),len(all_features[in_object].unique()))
-
-    features = list(numeric_features)
-    features.extend(['Type','Bedrooms'])
-    all_features = all_features[features]
-    all_features = pd.get_dummies(all_features, dummy_na=True)
-
-    if partition == "train" or partition == "val":
-        return all_features[:train_data.shape[0]].values.astype(np.float32), y.values.astype(np.float32)
-    else:
-        return all_features[train_data.shape[0]:].values.astype(np.float32)
-
-
-
+import json
+import matplotlib.pyplot as plt
+from PIL import Image
 def split_train_val_test_csv(data_folder, train_ratio=0.8, val_ratio=0.1, test_ratio=0.1):
 
     if train_ratio + val_ratio + test_ratio != 1:
@@ -108,23 +46,106 @@ def generate_all_csv(data_folder):
 
     train_file.close()
 
+class HuBMAP_HPA:
+    def __init__(self, data_folder) -> None:
+        self.data_folder = data_folder
+    def preprocess(self):
+        """
+        1. Generate masks from rle in train_labels
+        2. Create a csv all.csv with columns: id, img_path, label_path
+        """ 
+        train_img_path = os.path.join(self.data_folder, "train_images")
+        train_label_path = os.path.join(self.data_folder, "train_labels")
+        train_ann_path = os.path.join(self.data_folder, "train_annotations")
+        if not os.path.exists(train_label_path):
+            os.mkdir(train_label_path)
+        fd = pd.read_csv(os.path.join(self.data_folder, "train.csv"))
+        csv = open(os.path.join(self.data_folder, "all.csv"), 'w')
+        csv.write("id, img_path, label_path\n")
 
-def split_folder(data_folder="dataset/lung"):
-    for name in ['original', 'step1', 'step2', 'step3']:
-        class_folder = os.path.join(data_folder, name)
-        os.mkdir("/home/tky135/Desktop/test/" + name)
-        class_list = os.listdir(class_folder)
-        np.random.shuffle(class_list)
-        
-        for i in class_list[:40]:
-            file_path = os.path.join(class_folder, i)
-            os.system("mv " + file_path + " " + "/home/tky135/Desktop/test/" + name)
+        for i in range(fd.shape[0]):
+            rle = fd["rle"][i].strip()
+            height = fd["img_height"][i]
+            width = fd["img_width"][i]
+            id = fd["id"][i]
+            print("processing", id)
+            if not os.path.exists(os.path.join(train_label_path, "%d.npy" % id)):
+                mask = self.rle2mask(rle, height, width)
+                np.savetxt(os.path.join(train_label_path, "%d.npy" % id), mask)
+                ### testing
+                new_rle = self.mask2rle(mask).strip()
+                # # for i in range(len(new_rle)):
+                # #     print(new_rle[i], rle[i])
+                # # # print(rle)
+                # # # print(new_rle)
+                assert(rle == new_rle)
+                # raise Exception("break")
 
+            csv.write("%d, %s, %s\n" % (id, os.path.join("train_images", str(id) + ".tiff"), os.path.join("train_labels", str(id) + ".npy")))
+    def rle2mask(self, rle: str, height: int, width: int) -> np.ndarray:
+        """
+        Convert label format from rle to 2D np.ndarray masks
+        """
+        mask = np.zeros((height * width,))
+        rle_l = rle.strip().split(' ')
+        for i in range(0, len(rle_l) - 1, 2):
+            # print(i, "/", len(rle_l) - 1)
+            start, step = int(rle_l[i]), int(rle_l[i + 1])
+            # print(start, step)
+            mask[start - 1: start - 1 + step] = 1
+        mask = mask.reshape(width, height).T
 
+        return mask
+    # def mask2rle(self, mask: np.ndarray) -> str:
+    #     """
+    #     Convert label format from 2D np.ndarray masks to rle
+    #     """
+    #     rle = ""
+    #     height, width = mask.shape
+    #     flat_mask = mask.T.flatten()
+    #     i = 0
+    #     while i < flat_mask.shape[0]:
+    #         start_idx = i
+    #         num = 0
+    #         while flat_mask[i] == 1:
+    #             num += 1
+    #         rle += "%d %d" % (start_idx, num)
+    #     print(rle)
+    #     return rle
+    def mask2rle(self, img: np.ndarray) -> str:
+        '''
+        img: numpy array, 1 - mask, 0 - background
+        Returns run length as string formated
+        '''
+        pixels= img.T.flatten()
+        pixels = np.concatenate([[0], pixels, [0]])
+        print(np.where(pixels[1:] != pixels[:-1]))
+        raise Exception("break")
+        runs = np.where(pixels[1:] != pixels[:-1])[0] + 1
+        runs[1::2] -= runs[::2]
+        return ' '.join(str(x) for x in runs)
+    def visualize(self, idx: int = 0):
+        train_img_path = os.path.join(self.data_folder, "train_images")
+        train_label_path = os.path.join(self.data_folder, "train_labels")
+        train_ann_path = os.path.join(self.data_folder, "train_annotations")
+        df = pd.read_csv(os.path.join(self.data_folder, "train.csv"))
+        img_id = df["id"][idx]
 
+        my_img = np.array(Image.open(os.path.join(train_img_path, str(img_id) + ".tiff")))
 
+        my_label = np.loadtxt(os.path.join(train_label_path, str(img_id) + ".npy")).astype(bool)
+        my_ann = json.load(open(os.path.join(train_ann_path, str(img_id) + ".json")))
+        for cycle in my_ann:
+            for x,y in cycle:
+                my_img[y-10:y+10,x-10:x+10, 0] = 255
+        my_img[my_label, 2] = 255
+        plt.imshow(my_img)
+        plt.show()
 
 if __name__ == "__main__":
-    # split_folder()
+    # my_dataset = HuBMAP_HPA("dataset/organ")
+    # my_dataset.preprocess()
+    # # my_dataset.rle2mask()
+    # my_dataset.visualize(1)
     generate_all_csv(os.path.join("dataset", "lung"))
-    split_train_val_test_csv(os.path.join("dataset", "lung"), train_ratio=0, val_ratio=0, test_ratio=1)
+    split_train_val_test_csv(os.path.join("dataset", "lung"), train_ratio=0.8, val_ratio=0.2, test_ratio=0)

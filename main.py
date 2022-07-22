@@ -21,8 +21,8 @@ acc_fn = class_acc
 ############ DATA SET ##############
 DATASET = ImgCls
 ############ MODEL #################
-def get_model():
-    return GoogLeNet(input_channels=3, n_category=4, pretrained=True)
+def get_model(config):
+    return config["model"](input_channels=3, n_category=4, pretrained=True)
 ####################################
 
 
@@ -37,7 +37,7 @@ def train(config, log):
 
     # set model
 
-    model = get_model()
+    model = get_model(config)
     # model = torch.nn.Sequential(nn.Linear(18, 32), nn.ReLU(), nn.Linear(32, 1)).to(device)
     if device != torch.device("cpu"):
         model = nn.DataParallel(model)
@@ -117,7 +117,7 @@ def train(config, log):
         tr_loss_l.append(avg_tr_loss)
         tr_acc_l.append(avg_tr_acc)
 
-        if not len(val_loader.dataset) == 0 or  config["validate"]:
+        if not len(val_loader.dataset) == 0 or config["validate"]:
             avg_ev_loss, avg_ev_acc = val(config, log, model, val_loader)
             log.write("\tev_loss: " + "%.4f" % avg_ev_loss)
             log.write("\tev_acc: " + "%.4f" % avg_ev_acc)
@@ -195,14 +195,14 @@ def val(config, log, in_model, val_loader):
 def test(config):
     device = torch.device("cuda" if (config["cuda"] and torch.cuda.is_available()) else "cpu")
 
-    model = get_model()
+    model = get_model(config)
     if device != torch.device("cpu"):
         model = nn.DataParallel(model)
     model_path = "experiments/" + config["exp_name"] + "/model.t7"
     model.load_state_dict(torch.load(model_path))
 
         # set val dataloader
-    test_loader = DataLoader(DATASET(partition="test", config=config), batch_size=config["batch_size"], shuffle=False)
+    test_loader = DataLoader(DATASET(partition="test", config=config), batch_size=config["batch_size"], shuffle=False, drop_last=False)
 
     # set model to val
     model.eval()
@@ -213,8 +213,6 @@ def test(config):
 
     with torch.no_grad():
         for x, y in test_loader:
-            print(x)
-            print(y)
             # move to device
             x = x.to(device)
             y = y.to(device)
@@ -223,7 +221,6 @@ def test(config):
             y_pred = model(x)
             loss = loss_fn(y_pred, y)
             acc = acc_fn(y_pred, y)
-            
             avg_ev_loss += loss.item() * y.shape[0]
             avg_ev_acc += acc.item() * y.shape[0]
 
@@ -238,7 +235,7 @@ def test(config):
 def inference(config):
 
     device = torch.device("cuda" if config["cuda"] else "cpu")
-    model = get_model()
+    model = get_model(config)
     if device != torch.device("cpu"):
         model = nn.DataParallel(model)
     model_path = "experiments/" + config["exp_name"] + "/model.t7"

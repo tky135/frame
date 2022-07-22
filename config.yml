@@ -2,8 +2,11 @@
 
 exp_type:
   train
+do_split:
+  # if True, discard previous train val test split(if any) and split 
+  False
 model:
-  GoogLeNet
+  AlexNet
 dataset:
   lung
 cuda:
@@ -11,19 +14,16 @@ cuda:
   True
 train_val_test_ratio:
   [0.8, 0.1, 0.1]
-do_split:
-  # if True, discard previous train val test split(if any) and split 
-  True
 exp_name:
   # name of the experiment
 epochs:
   50
 force:
-  False
+  True
   
 #### train
 lr:
-  1e-2
+  1e-3
 momentum:
   0.9
 weight_decay:

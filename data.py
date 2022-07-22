@@ -2,7 +2,7 @@ import os
 import numpy as np
 from torch.utils.data import Dataset
 from util import readMNIST
-from preprocess import cvtFloatImg, procHouse, pred2l, split_train_val_test_csv
+from preprocess import split_train_val_test_csv
 import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib import image
@@ -24,7 +24,7 @@ train_augs = T.Compose([
 
 test_augs = T.Compose([
     # T.ToPILImage(),
-    T.Resize(224),
+    # T.Resize(227),
     T.ToTensor()])
 
 ######################################################
@@ -151,11 +151,11 @@ class ImgCls(Dataset):
 
     def __getitem__(self, index):
 
-        if self.partition == "train" or self.partition == "val" :
+        if self.partition == "train":
             x = Image.open(os.path.join(self.path, self.x[index]))
             y = self.y[index]
             return train_augs(x), y
-        elif self.partition == "test":
+        elif self.partition == "test" or self.partition == "val":
             x = Image.open(os.path.join(self.path, self.x[index]))
             y = self.y[index]
             return test_augs(x), y
