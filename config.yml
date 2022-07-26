@@ -1,12 +1,12 @@
 #### general
 
 exp_type:
-  train
+  inf
 do_split:
   # if True, discard previous train val test split(if any) and split 
   False
 model:
-  AlexNet
+  GoogLeNet
 dataset:
   lung
 cuda:
@@ -23,7 +23,7 @@ force:
   
 #### train
 lr:
-  1e-3
+  1e-2
 momentum:
   0.9
 weight_decay:

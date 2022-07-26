@@ -93,8 +93,6 @@ class ImgCls(Dataset):
 
 
     """
-    label2int = None
-    int2label = None
     def __init__(self, partition, config) -> None:
         super().__init__()
         self.partition = partition
@@ -130,25 +128,6 @@ class ImgCls(Dataset):
 
             self.y = df["label"].values
             self.x = df["image"].values
-
-            # split train and val set
-            # num = y.shape[0]
-            # indices = np.arange(num)
-            # np.random.seed(42) # I don't want to rely on this
-            # new_indices = np.random.choice(indices, num, replace=False)
-            # x = x[new_indices]
-            # y = y[new_indices]
-
-            # if partition == "train":
-            #     self.x = x[0:int(num * 8 / 10)]
-            #     self.y = y[0:int(num * 8 / 10)]
-            # elif partition == "val":
-            #     self.x = x[int(num * 8 / 10):int(num * 9 / 10)]
-            #     self.y = y[int(num * 8 / 10):int(num * 9 / 10)]
-            # elif partition == "test":
-            #     self.x = x[int(num * 9 / 10):]
-            #     self.y = y[int(num * 9 / 10):]
-
     def __getitem__(self, index):
 
         if self.partition == "train":
@@ -165,7 +144,7 @@ class ImgCls(Dataset):
             return test_augs(x)
     def __len__(self):
         return self.x.shape[0]
-
+        
     def get_mapping(self):
         dict_file = os.path.join(os.path.join("experiments", self.config["exp_name"]), "dictionary.json")
         if not os.path.exists(dict_file):
@@ -174,12 +153,85 @@ class ImgCls(Dataset):
             dictionary = json.load(f)
         return dictionary
         
+class HuBMAP_HPA(Dataset):
+    def __init__(self, data_folder) -> None:
+        self.data_folder = os.path.join("dataset", data_folder)
+    def preprocess(self):
+        """
+        1. Generate masks from rle in train_labels
+        2. Create a csv all.csv with columns: id, img_path, label_path
+        """ 
+        train_img_path = os.path.join(self.data_folder, "train_images")
+        train_label_path = os.path.join(self.data_folder, "train_labels")
+        train_ann_path = os.path.join(self.data_folder, "train_annotations")
+        if not os.path.exists(train_label_path):
+            os.mkdir(train_label_path)
+        fd = pd.read_csv(os.path.join(self.data_folder, "train.csv"))
+        csv = open(os.path.join(self.data_folder, "all.csv"), 'w')
+        csv.write("id, img_path, label_path\n")
 
+        for i in range(fd.shape[0]):
+            rle = fd["rle"][i].strip()
+            height = fd["img_height"][i]
+            width = fd["img_width"][i]
+            id = fd["id"][i]
+            print("processing", id)
+            if not os.path.exists(os.path.join(train_label_path, "%d.npy" % id)):
+                mask = self.rle2mask(rle, height, width)
+                np.savetxt(os.path.join(train_label_path, "%d.npy" % id), mask)
+                ### testing
+                # new_rle = self.mask2rle(mask).strip()
+                # assert(rle == new_rle)
+
+            csv.write("%d, %s, %s\n" % (id, os.path.join("train_images", str(id) + ".tiff"), os.path.join("train_labels", str(id) + ".npy")))
+    def rle2mask(self, rle: str, height: int, width: int) -> np.ndarray:
+        """
+        Convert label format from rle to 2D np.ndarray masks
+        """
+        mask = np.zeros((height * width,))
+        rle_l = rle.strip().split(' ')
+        for i in range(0, len(rle_l) - 1, 2):
+            # print(i, "/", len(rle_l) - 1)
+            start, step = int(rle_l[i]), int(rle_l[i + 1])
+            # print(start, step)
+            mask[start - 1: start - 1 + step] = 1
+        mask = mask.reshape(width, height).T
+
+        return mask
+    def mask2rle(self, img: np.ndarray) -> str:
+        '''
+        img: numpy array, 1 - mask, 0 - background
+        Returns run length as string formated
+        '''
+        pixels= img.T.flatten()
+        pixels = np.concatenate([[0], pixels, [0]])
+        runs = np.where(pixels[1:] != pixels[:-1])[0] + 1
+        runs[1::2] -= runs[::2]
+        return ' '.join(str(x) for x in runs)
+    def visualize(self, idx: int = 0):
+        train_img_path = os.path.join(self.data_folder, "train_images")
+        train_label_path = os.path.join(self.data_folder, "train_labels")
+        train_ann_path = os.path.join(self.data_folder, "train_annotations")
+        df = pd.read_csv(os.path.join(self.data_folder, "train.csv"))
+        img_id = df["id"][idx]
+
+        my_img = np.array(Image.open(os.path.join(train_img_path, str(img_id) + ".tiff")))
+
+        my_label = np.loadtxt(os.path.join(train_label_path, str(img_id) + ".npy")).astype(bool)
+        my_ann = json.load(open(os.path.join(train_ann_path, str(img_id) + ".json")))
+        for cycle in my_ann:
+            for x,y in cycle:
+                my_img[y-10:y+10,x-10:x+10, 0] = 255
+        my_img[my_label, 2] = 255
+        plt.imshow(my_img)
+        plt.show()
 if __name__ == "__main__":
-    dset_train = ImgCls("train", None)
-    dset_test = ImgCls("test", None)
-    dset_val = ImgCls("val", None)
-    print(set(dset_train))
+    dset = HuBMAP_HPA("organ")
+    dset.preprocess()
+    # dset_train = ImgCls("train", None)
+    # dset_test = ImgCls("test", None)
+    # dset_val = ImgCls("val", None)
+    # print(set(dset_train))
     # print(dset[3][0].shape)
     # print(dset[3][1])
     # # plt.imshow(dset[0][0].permute(1, 2, 0))
