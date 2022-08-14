@@ -10,7 +10,7 @@ import torch
 import json
 import torchvision.transforms as T
 from PIL import Image
-
+import glob
 ################### Transforms #######################
 
 train_augs = T.Compose([
@@ -24,7 +24,7 @@ train_augs = T.Compose([
 
 test_augs = T.Compose([
     # T.ToPILImage(),
-    # T.Resize(227),
+    T.Resize(227),
     T.ToTensor()])
 
 ######################################################
@@ -101,7 +101,9 @@ class ImgCls(Dataset):
         self.path = os.path.join("dataset", dataset)
         if partition == "inf":
             # x = pd.read_csv(os.path.join(self.path, "test.csv")).values
-            self.x = np.array(os.listdir("dataset/lung"))
+            # inf_path = os.listdir("dataset/lung")
+            inf_path = glob.glob("dataset/lung/*/" + '*.png')
+            self.x = np.array(inf_path)
             # self.x = np.array(["original\\or14.jpg"])
             self.y = None
         else:
@@ -140,7 +142,8 @@ class ImgCls(Dataset):
             return test_augs(x), y
         elif self.partition == "inf":
             print(self.x[index])
-            x = Image.open(os.path.join(self.path, self.x[index]))
+            my_path = self.x[index] if self.path == self.x[index][:len(self.path)] else os.path.join(self.path, self.x[index])
+            x = Image.open(my_path)
             return test_augs(x)
     def __len__(self):
         return self.x.shape[0]
@@ -226,8 +229,10 @@ class HuBMAP_HPA(Dataset):
         plt.imshow(my_img)
         plt.show()
 if __name__ == "__main__":
-    dset = HuBMAP_HPA("organ")
-    dset.preprocess()
+    # dset = HuBMAP_HPA("organ")
+    # dset.preprocess()
+    files = glob.glob("dataset/lung/*/*/" + '*.png')
+    print(files)
     # dset_train = ImgCls("train", None)
     # dset_test = ImgCls("test", None)
     # dset_val = ImgCls("val", None)
