@@ -10,7 +10,7 @@ import torch
 import json
 import torchvision.transforms as T
 from PIL import Image
-
+import glob
 ################### Transforms #######################
 
 train_augs = T.Compose([
@@ -140,7 +140,8 @@ class ImgCls(Dataset):
             return test_augs(x), y
         elif self.partition == "inf":
             print(self.x[index])
-            x = Image.open(os.path.join(self.path, self.x[index]))
+            my_path = self.x[index] if self.path == self.x[index][:len(self.path)] else os.path.join(self.path, self.x[index])
+            x = Image.open(my_path)
             return test_augs(x)
     def __len__(self):
         return self.x.shape[0]
@@ -226,8 +227,10 @@ class HuBMAP_HPA(Dataset):
         plt.imshow(my_img)
         plt.show()
 if __name__ == "__main__":
-    dset = HuBMAP_HPA("organ")
-    dset.preprocess()
+    # dset = HuBMAP_HPA("organ")
+    # dset.preprocess()
+    files = glob.glob("dataset/lung/*/*/" + '*.png')
+    print(files)
     # dset_train = ImgCls("train", None)
     # dset_test = ImgCls("test", None)
     # dset_val = ImgCls("val", None)
