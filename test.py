@@ -37,8 +37,8 @@ if __name__ == "__main__":
     #     id = fd["id"][i]
     #     mask = rle2mask(rle, height, width)
     #     np.savetxt(os.path.join(label_path, "%d.npy" % id), mask)
-    train_path = "dataset/organ/train_images"
-    annotation_path = "dataset/organ/train_annotations"
+    train_path = "/data/organ/train_images"
+    annotation_path = "/data/organ/train_annotations"
     large_images = []
     for train_img in os.listdir(train_path):
 

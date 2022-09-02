@@ -302,7 +302,7 @@ if __name__ == "__main__":
 
     # try to split train val test
     if config["do_split"]:
-        split_train_val_test_csv(data_folder=os.path.join("dataset", config["dataset"]), train_ratio=config["train_val_test_ratio"][0], val_ratio=config["train_val_test_ratio"][1], test_ratio=config["train_val_test_ratio"][2])
+        split_train_val_test_csv(data_folder=os.path.join("/data", config["dataset"]), train_ratio=config["train_val_test_ratio"][0], val_ratio=config["train_val_test_ratio"][1], test_ratio=config["train_val_test_ratio"][2])
     if config["exp_type"] == "train":
         # make output directories
         if os.path.exists("experiments/" + config["exp_name"]) and config["exp_name"] != "exp" and not config["force"]:

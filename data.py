@@ -24,7 +24,7 @@ train_augs = T.Compose([
 
 test_augs = T.Compose([
     # T.ToPILImage(),
-    # T.Resize(227),
+    T.Resize(227),
     T.ToTensor()])
 
 ######################################################
@@ -32,59 +32,59 @@ test_augs = T.Compose([
 dataset = "lung"
 
 ######################################################
-class MNIST(Dataset):
-    def __init__(self, partition):
-        x = cvtFloatImg(readMNIST("dataset/FashionMNIST/raw/Fashion_Train"))
-        y = readMNIST("dataset/FashionMNIST/raw/Fashion_Label")
-        num = y.shape[0]
-        if partition == "train":
-            self.x = x[0:int(num * 9 / 10)]
-            self.y = y[0:int(num * 9 / 10)]
-        elif partition == "val":
-            self.x = x[int(num * 9 / 10):]
-            self.y = y[int(num * 9 / 10):]
-        else:
-            raise Exception("Wrong partition")
+# class MNIST(Dataset):
+#     def __init__(self, partition):
+#         x = cvtFloatImg(readMNIST("dataset/FashionMNIST/raw/Fashion_Train"))
+#         y = readMNIST("dataset/FashionMNIST/raw/Fashion_Label")
+#         num = y.shape[0]
+#         if partition == "train":
+#             self.x = x[0:int(num * 9 / 10)]
+#             self.y = y[0:int(num * 9 / 10)]
+#         elif partition == "val":
+#             self.x = x[int(num * 9 / 10):]
+#             self.y = y[int(num * 9 / 10):]
+#         else:
+#             raise Exception("Wrong partition")
 
-    def __getitem__(self, index):
-        return self.x[index], self.y[index]
+#     def __getitem__(self, index):
+#         return self.x[index], self.y[index]
 
-    def __len__(self):
-        return self.y.shape[0]
+#     def __len__(self):
+#         return self.y.shape[0]
 
-class HousePrice(Dataset):
-    def __init__(self, partition):
-        self.partition = partition
-        if partition == "train" or partition == "val":
-            x = pd.read_csv("dataset/HousePrice/train.csv")
-            x, y = pred2l("train")
+# class HousePrice(Dataset):
+#     def __init__(self, partition):
+#         self.partition = partition
+#         if partition == "train" or partition == "val":
+#             x = pd.read_csv("dataset/HousePrice/train.csv")
+#             x, y = pred2l("train")
 
-            # randomly shuffle train set
-            num = y.shape[0]
-            indices = np.arange(num)
-            new_indices = np.random.choice(indices, num, replace=False)
-            x = x[new_indices]
-            y = y[new_indices]
+#             # randomly shuffle train set
+#             num = y.shape[0]
+#             indices = np.arange(num)
+#             new_indices = np.random.choice(indices, num, replace=False)
+#             x = x[new_indices]
+#             y = y[new_indices]
 
-            if partition == "train":
-                self.x = x[0:int(num * 9 / 10)]
-                self.y = y[0:int(num * 9 / 10)]
-            elif partition == "val":
-                self.x = x[int(num * 9 / 10):]
-                self.y = y[int(num * 9 / 10):]
-        elif partition == "test":
-            x = pd.read_csv("dataset/HousePrice/test.csv")
-            self.x = pred2l("test")
+#             if partition == "train":
+#                 self.x = x[0:int(num * 9 / 10)]
+#                 self.y = y[0:int(num * 9 / 10)]
+#             elif partition == "val":
+#                 self.x = x[int(num * 9 / 10):]
+#                 self.y = y[int(num * 9 / 10):]
+#         elif partition == "test":
+#             x = pd.read_csv("dataset/HousePrice/test.csv")
+#             self.x = pred2l("test")
             
-        else:
-            raise Exception("Not implemented")
-    def __getitem__(self, index):
-        if self.partition == "train" or self.partition == "val":
-            return self.x[index], self.y[index]
-        elif self.partition == "test":
-            return self.x[index]
-    def __len__(self):
-        return self.x.shape[0]
+#         else:
+#             raise Exception("Not implemented")
+#     def __getitem__(self, index):
+#         if self.partition == "train" or self.partition == "val":
+#             return self.x[index], self.y[index]
+#         elif self.partition == "test":
+#             return self.x[index]
+#     def __len__(self):
+#         return self.x.shape[0]
 
 class ImgCls(Dataset):
 
@@ -98,10 +98,10 @@ class ImgCls(Dataset):
         self.partition = partition
         self.config = config
         # root path of the dataset
-        self.path = os.path.join("dataset", dataset)
+        self.path = os.path.join("/data", dataset)
         if partition == "inf":
             # x = pd.read_csv(os.path.join(self.path, "test.csv")).values
-            self.x = np.array(os.listdir("dataset/lung"))
+            self.x = np.array(os.listdir("/data/lung"))
             # self.x = np.array(["original\\or14.jpg"])
             self.y = None
         else:
@@ -155,7 +155,7 @@ class ImgCls(Dataset):
         
 class HuBMAP_HPA(Dataset):
     def __init__(self, data_folder) -> None:
-        self.data_folder = os.path.join("dataset", data_folder)
+        self.data_folder = os.path.join("/data", data_folder)
     def preprocess(self):
         """
         1. Generate masks from rle in train_labels

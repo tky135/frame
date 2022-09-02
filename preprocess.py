@@ -147,5 +147,5 @@ if __name__ == "__main__":
     # my_dataset.preprocess()
     # # my_dataset.rle2mask()
     # my_dataset.visualize(1)
-    generate_all_csv(os.path.join("dataset", "lung"))
+    generate_all_csv(os.path.join("/data", "lung"))
     split_train_val_test_csv(os.path.join("dataset", "lung"), train_ratio=0.8, val_ratio=0.2, test_ratio=0)

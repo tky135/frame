@@ -33,7 +33,7 @@ def readMNIST(file):
     f.close()
 
 def clean_cifar():
-    path = os.path.join("dataset", "cifar-10")
+    path = os.path.join("/data", "cifar-10")
     f = open(os.path.join(path, "trainLabels.csv"))
     g = open(os.path.join(path, "train.csv"), 'w')
     f.readline()

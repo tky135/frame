@@ -1,7 +1,7 @@
 #### general
 
 exp_type:
-  inf
+  train
 do_split:
   # if True, discard previous train val test split(if any) and split 
   False
@@ -17,7 +17,7 @@ train_val_test_ratio:
 exp_name:
   # name of the experiment
 epochs:
-  50
+  25
 force:
   True
   
