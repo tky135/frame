@@ -37,7 +37,7 @@ def train(config, log):
 
     # set model
 
-    model = get_model(config)
+    model = get_model(config).to(device)
     # model = torch.nn.Sequential(nn.Linear(18, 32), nn.ReLU(), nn.Linear(32, 1)).to(device)
     if device != torch.device("cpu"):
         model = nn.DataParallel(model)

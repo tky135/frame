@@ -6,7 +6,7 @@ do_split:
   # if True, discard previous train val test split(if any) and split 
   False
 model:
-  GoogLeNet
+  ResNet18
 dataset:
   lung
 cuda:
