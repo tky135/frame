@@ -1,14 +1,14 @@
 #### general
 
 exp_type:
-  test
+  train
 do_split:
   # if True, discard previous train val test split(if any) and split 
   False
 model:
-  AlexNet
+  ResNet18
 dataset:
-  inbox
+  lung
 cuda:
   # if True, try to use GPU, else use CPU
   True

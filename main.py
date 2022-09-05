@@ -137,6 +137,9 @@ def train(config, log):
                 path = ("experiments\\" + config["exp_name"] + "\\model.t7") if os.name == "nt" else ("experiments/" + config["exp_name"] + "/model.t7")
                 torch.save(model.state_dict(), path)
                 log.write("\tmodel saved. ")
+            if avg_ev_acc >= 0.95:
+                return
+            
         else:
             path = ("experiments\\" + config["exp_name"] + "\\model.t7") if os.name == "nt" else ("experiments/" + config["exp_name"] + "/model.t7")
             torch.save(model.state_dict(), path)
@@ -234,12 +237,12 @@ def test(config):
             avg_ev_acc += acc.item() * y.shape[0]
 
             # get confusion matrix
-            confusion_matrix = metrics.confusion_matrix(y.cpu().numpy(), np.argmax(y_pred.cpu().numpy(), axis=1))
+            confusion_matrix = metrics.confusion_matrix(y.cpu().numpy(), np.argmax(y_pred.cpu().numpy(), axis=1), labels=range(global_confusion_matrix.shape[0]))
             global_confusion_matrix += confusion_matrix
-            int2label = test_loader.dataset.get_mapping()["int2label"]
     avg_ev_loss /= len(test_loader.dataset)
     avg_ev_acc /= len(test_loader.dataset)
-    plot_confusion_matrix(global_confusion_matrix, [int2label[str(i)] for i in range(confusion_matrix.shape[0])])
+    int2label = test_loader.dataset.get_mapping()["int2label"]
+    plot_confusion_matrix(global_confusion_matrix, [int2label[str(i)] for i in range(global_confusion_matrix.shape[0])])
 
     print("testing: ", avg_ev_loss, avg_ev_acc)
     return avg_ev_loss, avg_ev_acc
