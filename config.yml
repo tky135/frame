@@ -6,7 +6,7 @@ do_split:
   # if True, discard previous train val test split(if any) and split 
   False
 model:
-  ResNet18
+  AlexNet
 dataset:
   lung
 cuda:
@@ -17,20 +17,23 @@ train_val_test_ratio:
 exp_name:
   # name of the experiment
 epochs:
-  25
+  100
 force:
   True
   
 #### train
+
 lr:
-  1e-2
+  1e-3
 momentum:
   0.9
 weight_decay:
   1e-4
 batch_size:
-  32
+  64
 validate:
   # if True, do validation at the end of each epoch
   True
-
+continue:
+  # if True, load model from experiemnts
+  False

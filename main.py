@@ -29,7 +29,7 @@ def get_model(config):
 def train(config, log):
     log.write("TRAIN\n\n")
     device = torch.device("cuda" if (config["cuda"] and torch.cuda.is_available()) else "cpu")
-    print(device)
+    print("Device: ", device)
 
     # set train dataloader
     train_loader = DataLoader(DATASET(partition="train", config=config), batch_size=config["batch_size"], shuffle=True, drop_last=False)
@@ -41,7 +41,14 @@ def train(config, log):
     # model = torch.nn.Sequential(nn.Linear(18, 32), nn.ReLU(), nn.Linear(32, 1)).to(device)
     if device != torch.device("cpu"):
         model = nn.DataParallel(model)
-    print(model)
+
+    ## TODO add continue training
+    if config["continue"] == True:
+        model_path = "experiments/" + config["exp_name"] + "/model.t7"
+        if not os.path.exists(model_path):
+            raise Exception(model_path, "Does not exist")
+        print("Loading state dict from: " + model_path + " ...")
+        model.load_state_dict(torch.load(model_path))
     # set optimizer and scheduler
     # set different parameters for different layers
 
@@ -127,7 +134,7 @@ def train(config, log):
                 best_acc = avg_ev_acc
                 path = ("experiments\\" + config["exp_name"] + "\\model.t7") if os.name == "nt" else ("experiments/" + config["exp_name"] + "/model.t7")
                 torch.save(model.state_dict(), path)
-                log.write("model saved. ")
+                log.write("\tmodel saved. ")
         else:
             path = ("experiments\\" + config["exp_name"] + "\\model.t7") if os.name == "nt" else ("experiments/" + config["exp_name"] + "/model.t7")
             torch.save(model.state_dict(), path)
@@ -279,10 +286,11 @@ if __name__ == "__main__":
     parser.add_argument("--weight_decay", type=float, default=None)
     parser.add_argument("--exp_type", type=str, default=None)
     parser.add_argument("--validate", type=bool, default=None)
-    parser.add_argument("-d", "--do_split", type=bool, default=None)
+    parser.add_argument("--do_split", type=bool, default=None)
     parser.add_argument("--train_val_test_ratio", type=list, default=None)
     parser.add_argument("--dataset", type=str, default=None)
     parser.add_argument("-f", "--force", type=str, default=None)
+    parser.add_argument("--continue", type=bool, default=None)
     args = parser.parse_args()
     
 
@@ -305,6 +313,8 @@ if __name__ == "__main__":
         split_train_val_test_csv(data_folder=os.path.join("/data", config["dataset"]), train_ratio=config["train_val_test_ratio"][0], val_ratio=config["train_val_test_ratio"][1], test_ratio=config["train_val_test_ratio"][2])
     if config["exp_type"] == "train":
         # make output directories
+
+        # if exp_name already exists and is not default "exp" and force is not set, raise Exception
         if os.path.exists("experiments/" + config["exp_name"]) and config["exp_name"] != "exp" and not config["force"]:
             raise Exception("Already exist: " + "experiments/" + config["exp_name"])
 

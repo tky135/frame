@@ -24,7 +24,7 @@ train_augs = T.Compose([
 
 test_augs = T.Compose([
     # T.ToPILImage(),
-    T.Resize(227),
+    # T.Resize(227),
     T.ToTensor()])
 
 ######################################################
@@ -229,7 +229,7 @@ class HuBMAP_HPA(Dataset):
 if __name__ == "__main__":
     # dset = HuBMAP_HPA("organ")
     # dset.preprocess()
-    files = glob.glob("dataset/lung/*/*/" + '*.png')
+    files = glob.glob("/data/lung/*/*/" + '*.png')
     print(files)
     # dset_train = ImgCls("train", None)
     # dset_test = ImgCls("test", None)
