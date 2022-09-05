@@ -11,10 +11,12 @@ import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from model import *
 from preprocess import *
+from util import *
 from data import ImgCls
 from functions import acc_fn, RMSElog, CEloss, class_acc
 import yaml
 import datetime
+from sklearn import metrics
 ############ VALIDATION ############
 loss_fn = CEloss
 acc_fn = class_acc
@@ -208,7 +210,6 @@ def test(config):
     model_path = "experiments/" + config["exp_name"] + "/model.t7"
     model.load_state_dict(torch.load(model_path))
 
-        # set val dataloader
     test_loader = DataLoader(DATASET(partition="test", config=config), batch_size=config["batch_size"], shuffle=False, drop_last=False)
 
     # set model to val
@@ -217,8 +218,9 @@ def test(config):
     # set display and monitor list
     avg_ev_loss = 0
     avg_ev_acc = 0
-
+    global_confusion_matrix = np.zeros((4, 4))
     with torch.no_grad():
+
         for x, y in test_loader:
             # move to device
             x = x.to(device)
@@ -231,11 +233,14 @@ def test(config):
             avg_ev_loss += loss.item() * y.shape[0]
             avg_ev_acc += acc.item() * y.shape[0]
 
+            # get confusion matrix
+            confusion_matrix = metrics.confusion_matrix(y.cpu().numpy(), np.argmax(y_pred.cpu().numpy(), axis=1))
+            global_confusion_matrix += confusion_matrix
+            int2label = test_loader.dataset.get_mapping()["int2label"]
     avg_ev_loss /= len(test_loader.dataset)
     avg_ev_acc /= len(test_loader.dataset)
-    # set model back to train
-    model.train()
-    # return valuation loss and other metrics
+    plot_confusion_matrix(global_confusion_matrix, [int2label[str(i)] for i in range(confusion_matrix.shape[0])])
+
     print("testing: ", avg_ev_loss, avg_ev_acc)
     return avg_ev_loss, avg_ev_acc
 
@@ -307,9 +312,14 @@ if __name__ == "__main__":
     # generate default exp_name for lazy users
     if not config["exp_name"] or config["exp_name"] == "default":
         config["exp_name"] = config["model"].__name__ + "_" + config["dataset"] + "_" + str(datetime.date.today())
-
+    print(config["exp_name"])
+    # raise Exception("break")
     # try to split train val test
     if config["do_split"]:
+        if config["exp_type"] != "train":
+            user = input("Your experiment type is: " + config["exp_type"] + ". Are you sure you want to do split? (y/n)")
+            if user not in ["Y", "y"]:
+                raise Exception("Canceled")
         split_train_val_test_csv(data_folder=os.path.join("/data", config["dataset"]), train_ratio=config["train_val_test_ratio"][0], val_ratio=config["train_val_test_ratio"][1], test_ratio=config["train_val_test_ratio"][2])
     if config["exp_type"] == "train":
         # make output directories
@@ -337,6 +347,7 @@ if __name__ == "__main__":
         # torch.manual_seed(42)
         # np.random.seed(42)
         # torch.use_deterministic_algorithms(True)
+
     elif not os.path.exists(os.path.join("experiments", config["exp_name"])):
             raise Exception("Must train first")
     if config["exp_type"] == "inf":

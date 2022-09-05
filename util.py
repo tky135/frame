@@ -3,6 +3,7 @@ from cv2 import split
 import numpy as np
 import os
 import matplotlib.pyplot as plt
+from sklearn import metrics
 def unpickle(file):
     import pickle
     with open(file, 'rb') as fo:
@@ -50,8 +51,9 @@ def clean_cifar():
         h.write("test/" + img + '\n')
     h.close()
         
-
-
-
+def plot_confusion_matrix(confusion_matrix, labels):
+    display = metrics.ConfusionMatrixDisplay(confusion_matrix = confusion_matrix, display_labels = labels)
+    display.plot()
+    plt.savefig("confusion_matrix.jpg")
 if __name__ == "__main__":
-    clean_cifar()
+    plot_confusion_matrix(np.array([[0, 1], [2, 3]]), ["yes", "no"])

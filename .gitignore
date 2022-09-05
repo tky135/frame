@@ -6,3 +6,5 @@ temp*
 *.out
 .vscode
 history
+*.jpg
+*.png

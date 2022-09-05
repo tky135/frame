@@ -29,7 +29,7 @@ test_augs = T.Compose([
 
 ######################################################
 
-dataset = "lung"
+# dataset = "lung"
 
 ######################################################
 # class MNIST(Dataset):
@@ -98,7 +98,7 @@ class ImgCls(Dataset):
         self.partition = partition
         self.config = config
         # root path of the dataset
-        self.path = os.path.join("/data", dataset)
+        self.path = os.path.join("/data", config["dataset"])
         if partition == "inf":
             # x = pd.read_csv(os.path.join(self.path, "test.csv")).values
             self.x = np.array(os.listdir("/data/lung"))
@@ -106,7 +106,10 @@ class ImgCls(Dataset):
             self.y = None
         else:
             if not os.path.exists(os.path.join(self.path, partition + ".csv")):
-                split_train_val_test_csv(self.path)
+                user = input(os.path.join(self.path, partition + ".csv") + " does not exist, do split?(May overwrite other existing csv)(y/n)")
+                if user not in ["y", "Y"]:
+                    raise Exception("Canceled")
+                split_train_val_test_csv(self.path, config["train_val_test_ratio"][0], config["train_val_test_ratio"][1], config["train_val_test_ratio"][2])
             df = pd.read_csv(os.path.join(self.path, partition + ".csv"))
 
             # convert string labels to ints
