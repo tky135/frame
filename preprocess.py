@@ -7,21 +7,84 @@ import os
 import json
 import matplotlib.pyplot as plt
 from PIL import Image
+IgnoreFiles = ['.DS_Store']
 def split_train_val_test_csv(data_folder, train_ratio=0.8, val_ratio=0.1, test_ratio=0.1):
-
-    if train_ratio + val_ratio + test_ratio != 1:
-        raise Exception("train ratio + val ratio + test ratio should be 1")
-    generate_all_csv(data_folder)
-    all_df = pd.read_csv(os.path.join(data_folder, "all.csv"))
-    all_df = all_df.sample(frac=1).reset_index(drop=True)
-    # print(all_df.info)
-    length = all_df.shape[0]
-    all_df.iloc[:int(train_ratio * length), :].to_csv(os.path.join(data_folder, "train.csv"))
-    all_df.iloc[int(train_ratio * length) : int((train_ratio + val_ratio) * length), :].to_csv(os.path.join(data_folder, "val.csv"))
-    all_df.iloc[int((train_ratio + val_ratio) * length): , :].to_csv(os.path.join(data_folder, "test.csv"))
+    # try to split at ratio, but if folder explicitly provides test folder, then only train & val is splited
     
 
-def generate_all_csv(data_folder):
+    # generate all.csv
+    
+    # for each folder(class)
+
+    # garbage :( but works somehow
+    test_folder = [os.path.join(data_folder, f) for f in os.listdir(data_folder) if os.path.isdir(os.path.join(data_folder, f))][0]
+    test_folder = os.path.isdir(os.path.join(test_folder, os.listdir(test_folder)[0]))
+    if test_folder:
+
+        train_file = open(os.path.join(data_folder, "all.csv"), "w")
+        test_file = open(os.path.join(data_folder, "test.csv"), "w")
+        train_file.write("x,y\n")
+        test_file.write("x,y\n")
+
+        print("Detected dataset structure: dataset----class 1----test\n\t\t\t\t|\t|\n\t\t\t\t|\t----------train\n\t\t\t\t|\n\t\t\t\t-------class 2")
+        for myclass in os.listdir(data_folder):
+            ext_myclass = os.path.join(data_folder, myclass)
+            if not os.path.isdir(ext_myclass):
+                continue
+            for exp in os.listdir(ext_myclass):
+                extend_exp = os.path.join(ext_myclass, exp)
+                if exp in IgnoreFiles:
+                    continue
+                if (not os.path.isdir(extend_exp)) or (exp not in ["train", "test"]):
+                    raise Exception("detected dataset structure not met for: ", os.path.join(ext_myclass, exp))
+                if exp == "test":
+                    for x in os.listdir(extend_exp):
+                        if x in IgnoreFiles:
+                            continue
+                        test_file.write(os.path.join(myclass, exp, x) + "," + myclass + "\n")
+                else:
+                    for x in os.listdir(extend_exp):
+                        if x in IgnoreFiles:
+                            continue
+                        train_file.write(os.path.join(myclass, exp, x) + "," + myclass + "\n")
+        train_file.close()
+        test_file.close()
+        all_df = pd.read_csv(os.path.join(data_folder, "all.csv"))
+        all_df = all_df.sample(frac=1).reset_index(drop=True)
+        
+        # if test_ratio is assigned, add it to train_ratio
+        train_ratio = train_ratio + test_ratio
+
+        length = all_df.shape[0]
+        all_df.iloc[:int(train_ratio * length), :].to_csv(os.path.join(data_folder, "train.csv"), index=False)
+        all_df.iloc[int(train_ratio * length):, :].to_csv(os.path.join(data_folder, "val.csv"), index=False)
+            
+    else:
+    # no test folder
+        if train_ratio + val_ratio + test_ratio != 1:
+            raise Exception("train ratio + val ratio + test ratio should be 1")
+        train_file = open(os.path.join(data_folder, "all.csv"), "w")
+        train_file.write("x,y\n")
+        print("Detected dataset structure: dataset----class 1\n\t\t\t\t|\t\n\t\t\t\t|\t\n\t\t\t\t|\n\t\t\t\t-------class 2")
+        for myclass in os.listdir(data_folder):
+            ext_myclass = os.path.join(data_folder, myclass)
+            if not os.path.isdir(ext_myclass):
+                continue
+            for x in os.listdir(ext_myclass):
+                x = os.path.join(myclass, x)
+                train_file.write(x + "," + myclass + "\n")
+        train_file.close()
+        all_df = pd.read_csv(os.path.join(data_folder, "all.csv"))
+        all_df = all_df.sample(frac=1).reset_index(drop=True)
+        # print(all_df.info)
+        length = all_df.shape[0]
+        all_df.iloc[:int(train_ratio * length), :].to_csv(os.path.join(data_folder, "train.csv"), index=False)
+        all_df.iloc[int(train_ratio * length) : int((train_ratio + val_ratio) * length), :].to_csv(os.path.join(data_folder, "val.csv"), index=False)
+        all_df.iloc[int((train_ratio + val_ratio) * length): , :].to_csv(os.path.join(data_folder, "test.csv"), index=False)
+    
+
+
+def _generate_all_csv(data_folder):
     """
     Generate a csv file for all the images with columns:
 
@@ -33,18 +96,7 @@ def generate_all_csv(data_folder):
     TODO: Make this more "intelligent"
 
     """
-    train_file = open(os.path.join(data_folder, "all.csv"), "w")
-    train_file.write("image,label\n")
-    for myclass in os.listdir(data_folder):
-        class_folder = os.path.join(data_folder, myclass)
-        if not os.path.isdir(class_folder):
-            continue
-        for img in os.listdir(class_folder):
-            img = os.path.join(myclass, img)
-            train_file.write(img + "," + myclass + "\n")
-
-
-    train_file.close()
+    
 
 class HuBMAP_HPA:
     def __init__(self, data_folder) -> None:
@@ -147,5 +199,5 @@ if __name__ == "__main__":
     # my_dataset.preprocess()
     # # my_dataset.rle2mask()
     # my_dataset.visualize(1)
-    generate_all_csv(os.path.join("/data", "lung"))
-    split_train_val_test_csv(os.path.join("dataset", "lung"), train_ratio=0.8, val_ratio=0.2, test_ratio=0)
+    split_train_val_test_csv(os.path.join("/data", "ModelNet40"))
+    # split_train_val_test_csv(os.path.join("dataset", "lung"), train_ratio=0.8, val_ratio=0.2, test_ratio=0)

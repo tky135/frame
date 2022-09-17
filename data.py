@@ -11,6 +11,7 @@ import json
 import torchvision.transforms as T
 from PIL import Image
 import glob
+import trimesh
 ################### Transforms #######################
 
 train_augs = T.Compose([
@@ -99,6 +100,9 @@ class ImgCls(Dataset):
         self.config = config
         # root path of the dataset
         self.path = os.path.join("/data", config["dataset"])
+
+
+
         if partition == "inf":
             # x = pd.read_csv(os.path.join(self.path, "test.csv")).values
             self.x = np.array(os.listdir("/data/lung"))
@@ -156,7 +160,57 @@ class ImgCls(Dataset):
         with open(dict_file, "r") as f:
             dictionary = json.load(f)
         return dictionary
-        
+
+
+class PCCls(Dataset):
+    def __init__(self, partition, config) -> None:
+        super().__init__()
+        self.partition = partition
+        self.config = config
+        # root path of the dataset
+        self.path = os.path.join("/data", config["dataset"])
+
+        ## TODO
+        if partition == "inf":
+            self.x = None
+            self.y = None
+
+        else:
+            # if no csv for partition exist, try split
+            if not os.path.exists(os.path.join(self.path, partition + ".csv")):
+                user = input(os.path.join(self.path, partition + ".csv") + " does not exist, do split?(May overwrite other existing csv)(y/n)")
+                if user not in ["y", "Y"]:
+                    raise Exception("Canceled")
+                newsplit_train_val_test_csv(self.path, config["train_val_test_ratio"][0], config["train_val_test_ratio"][1], config["train_val_test_ratio"][2])
+            # if so, read a dataframe
+            df = pd.read_csv(os.path.join(self.path, partition + ".csv"))
+
+
+            ## csv: meshfile, class
+
+            # convert string labels to ints
+            # give one standard to label2int and int2label
+            dict_file = os.path.join(os.path.join("experiments", config["exp_name"]), "dictionary.json")
+            # if train, write dict_file
+            if partition == "train" and not os.path.exists(dict_file):
+                cifar_types = df["label"].unique()
+                dictionary = {"label2int" : dict(zip(cifar_types, range(len(cifar_types)))), "int2label" : dict(zip(range(len(cifar_types)), cifar_types))}
+                with open(dict_file, "w") as f:
+                    json.dump(dictionary, f)
+            elif os.path.exists(dict_file):
+                with open(dict_file, "r") as f:
+                    dictionary = json.load(f)
+            else:
+                raise Exception("dictionary.json file must be created by the train experiment")
+
+            label2int = dictionary["label2int"]
+            df["label"] = df["label"].replace(label2int)
+            self.y = df["label"].values
+            self.x = df["mesh"].values
+    def __getitem__(self, index):
+        if self.partition == "train":
+            x = trimesh.load(open(os.path.join(self.path, self.x[index])))
+            print(x)
 class HuBMAP_HPA(Dataset):
     def __init__(self, data_folder) -> None:
         self.data_folder = os.path.join("/data", data_folder)
@@ -230,19 +284,5 @@ class HuBMAP_HPA(Dataset):
         plt.imshow(my_img)
         plt.show()
 if __name__ == "__main__":
-    # dset = HuBMAP_HPA("organ")
-    # dset.preprocess()
-    files = glob.glob("/data/lung/*/*/" + '*.png')
-    print(files)
-    # dset_train = ImgCls("train", None)
-    # dset_test = ImgCls("test", None)
-    # dset_val = ImgCls("val", None)
-    # print(set(dset_train))
-    # print(dset[3][0].shape)
-    # print(dset[3][1])
-    # # plt.imshow(dset[0][0].permute(1, 2, 0))
-    # # plt.imshow(dset[1][0].permute(1, 2, 0))
-    # # plt.imshow(dset[2][0].permute(1, 2, 0))
-    # plt.imshow(dset[3][0].permute(1, 2, 0))
-    # plt.show()
+    pass
     
