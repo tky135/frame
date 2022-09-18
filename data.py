@@ -201,7 +201,7 @@ class PCCls(Dataset):
                 with open(dict_file, "r") as f:
                     dictionary = json.load(f)
             else:
-                raise Exception("dictionary.json file must be created by the train experiment")
+                raise Exception("dictionary.json file must bImgClse created by the train experiment")
 
             label2int = dictionary["label2int"]
             df["y"] = df["y"].replace(label2int)
@@ -212,8 +212,9 @@ class PCCls(Dataset):
             mesh = trimesh.load(file_obj=open(os.path.join(self.path, self.x[index])), file_type="off")
             pc = trimesh.sample.sample_surface(mesh, self.config["num_samples"])[0]
             pc = self.normalize(pc)
-            return torch.from_numpy(pc), self.y[index]
-            
+            return torch.tensor(pc, dtype=torch.float32), self.y[index]
+    def __len__(self):
+        return self.x.shape[0]
 
     def index_points(self, indices, values):
         pass

@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from model import *
 from preprocess import *
 from util import *
-from data import ImgCls
+from data import ImgCls, PCCls
 from functions import acc_fn, RMSElog, CEloss, class_acc
 import yaml
 import datetime
@@ -21,10 +21,10 @@ from sklearn import metrics
 loss_fn = CEloss
 acc_fn = class_acc
 ############ DATA SET ##############
-DATASET = ImgCls
+DATASET = PCCls
 ############ MODEL #################
 def get_model(config):
-    return config["model"](input_channels=3, n_category=4, pretrained=True)
+    return config["model"](output_channels=10)
 ####################################
 
 
@@ -88,6 +88,8 @@ def train(config, log):
         avg_ev_acc = 0
 
         for x, y in train_loader:
+            print(x.shape)
+            print(y.shape)
             # move to device
             x = x.to(device)
             y = y.to(device)

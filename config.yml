@@ -6,9 +6,9 @@ do_split:
   # if True, discard previous train val test split(if any) and split 
   False
 model:
-  ResNet18
+  Pct
 dataset:
-  lung
+  ModelNet10
 cuda:
   # if True, try to use GPU, else use CPU
   True
