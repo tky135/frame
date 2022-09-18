@@ -181,11 +181,11 @@ class PCCls(Dataset):
                 user = input(os.path.join(self.path, partition + ".csv") + " does not exist, do split?(May overwrite other existing csv)(y/n)")
                 if user not in ["y", "Y"]:
                     raise Exception("Canceled")
-                newsplit_train_val_test_csv(self.path, config["train_val_test_ratio"][0], config["train_val_test_ratio"][1], config["train_val_test_ratio"][2])
+                split_train_val_test_csv(self.path, config["train_val_test_ratio"][0], config["train_val_test_ratio"][1], config["train_val_test_ratio"][2])
             # if so, read a dataframe
             df = pd.read_csv(os.path.join(self.path, partition + ".csv"))
 
-
+        
             ## csv: meshfile, class
 
             # convert string labels to ints
@@ -193,7 +193,7 @@ class PCCls(Dataset):
             dict_file = os.path.join(os.path.join("experiments", config["exp_name"]), "dictionary.json")
             # if train, write dict_file
             if partition == "train" and not os.path.exists(dict_file):
-                cifar_types = df["label"].unique()
+                cifar_types = df["y"].unique()
                 dictionary = {"label2int" : dict(zip(cifar_types, range(len(cifar_types)))), "int2label" : dict(zip(range(len(cifar_types)), cifar_types))}
                 with open(dict_file, "w") as f:
                     json.dump(dictionary, f)
@@ -204,13 +204,37 @@ class PCCls(Dataset):
                 raise Exception("dictionary.json file must be created by the train experiment")
 
             label2int = dictionary["label2int"]
-            df["label"] = df["label"].replace(label2int)
-            self.y = df["label"].values
-            self.x = df["mesh"].values
+            df["y"] = df["y"].replace(label2int)
+            self.y = df["y"].values
+            self.x = df["x"].values
     def __getitem__(self, index):
         if self.partition == "train":
-            x = trimesh.load(open(os.path.join(self.path, self.x[index])))
-            print(x)
+            mesh = trimesh.load(file_obj=open(os.path.join(self.path, self.x[index])), file_type="off")
+            pc = trimesh.sample.sample_surface(mesh, self.config["num_samples"])[0]
+            pc = self.normalize(pc)
+            return torch.from_numpy(pc), self.y[index]
+            
+
+    def index_points(self, indices, values):
+        pass
+    def normalize(self, pc):
+        """
+        np array
+        """
+        centroid = np.mean(pc, axis=0)
+        pc = pc - centroid
+        m = np.max(np.sqrt(np.sum(pc**2, axis=1)))
+        pc = pc / m
+        return pc
+
+    def visualize(self, pc, label=None):
+        """
+        Visualize a point cloud, generate a .obj file (for now)
+        """
+        f = open("pc.obj", "w")
+        for i in range(pc.shape[0]):
+            f.write("v " + str(float(pc[i, 0])) + " " + str(float(pc[i, 1])) + " " + str(float(pc[i, 2])) + "\n")
+        f.close()
 class HuBMAP_HPA(Dataset):
     def __init__(self, data_folder) -> None:
         self.data_folder = os.path.join("/data", data_folder)
@@ -284,5 +308,10 @@ class HuBMAP_HPA(Dataset):
         plt.imshow(my_img)
         plt.show()
 if __name__ == "__main__":
-    pass
+    pcds = PCCls("train", {"dataset":"ModelNet10", "train_val_test_ratio":[0.8, 0.1, 0.1], "exp_name":"test", "num_samples":4096})
+    pcds.visualize(pcds[41][0])
+    print(pcds[41][1])
     
+# Notes:
+# ModelNet and shapenet both are artificial mesh datasets. Why not learn on mesh directly
+# self-supervised: predict new point's line, surface, corner: how human recognize things. Think of BERT

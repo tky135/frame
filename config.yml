@@ -39,3 +39,5 @@ validate:
 continue:
   # if True, load model from experiemnts
   False
+num_samples:
+  2048
