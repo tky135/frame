@@ -13,13 +13,13 @@ cuda:
   # if True, try to use GPU, else use CPU
   True
 train_val_test_ratio:
-  # [0.8, 0.1, 0.1]
+  [0.8, 0.1, 0.1]
   # [0, 0, 1]
 
 exp_name:
   # name of the experiment
 epochs:
-  25
+  50
 force:
   True
 

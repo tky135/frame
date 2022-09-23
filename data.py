@@ -1,7 +1,7 @@
 import os
 import numpy as np
 from torch.utils.data import Dataset
-from util import readMNIST
+# from util import readMNIST
 from preprocess import split_train_val_test_csv
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -208,7 +208,7 @@ class PCCls(Dataset):
             self.y = df["y"].values
             self.x = df["x"].values
     def __getitem__(self, index):
-        if self.partition == "train":
+        if self.partition == "train" or self.partition == "val":
             mesh = trimesh.load(file_obj=open(os.path.join(self.path, self.x[index])), file_type="off")
             pc = trimesh.sample.sample_surface(mesh, self.config["num_samples"])[0]
             pc = self.normalize(pc)

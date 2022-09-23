@@ -88,8 +88,6 @@ def train(config, log):
         avg_ev_acc = 0
 
         for x, y in train_loader:
-            print(x.shape)
-            print(y.shape)
             # move to device
             x = x.to(device)
             y = y.to(device)
@@ -139,8 +137,6 @@ def train(config, log):
                 path = ("experiments\\" + config["exp_name"] + "\\model.t7") if os.name == "nt" else ("experiments/" + config["exp_name"] + "/model.t7")
                 torch.save(model.state_dict(), path)
                 log.write("\tmodel saved. ")
-            if avg_ev_acc >= 0.95:
-                return
             
         else:
             path = ("experiments\\" + config["exp_name"] + "\\model.t7") if os.name == "nt" else ("experiments/" + config["exp_name"] + "/model.t7")
