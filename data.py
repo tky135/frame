@@ -12,6 +12,9 @@ import torchvision.transforms as T
 from PIL import Image
 import glob
 import trimesh
+import warnings
+from tqdm import tqdm
+import sys
 ################### Transforms #######################
 
 train_augs = T.Compose([
@@ -85,7 +88,7 @@ test_augs = T.Compose([
 #         elif self.partition == "test":
 #             return self.x[index]
 #     def __len__(self):
-#         return self.x.shape[0]
+#         retur:n self.x.shape[0]
 
 class ImgCls(Dataset):
 
@@ -308,10 +311,176 @@ class HuBMAP_HPA(Dataset):
         my_img[my_label, 2] = 255
         plt.imshow(my_img)
         plt.show()
+
+class ImgSeg(Dataset):
+    def __init__(self, partition, config) -> None:
+        super().__init__()
+        self.partition = partition
+        self.config = config
+        self.path = os.path.join("/data", config["dataset"])
+
+        self.dict_store = os.path.join(self.path, "dict_store.json")
+        self.dict = {}
+
+        # user can manually provide a dictionary file
+        if os.path.exists(self.dict_store):
+            self.dict = json.load(open(self.dict_store))
+
+        if partition == "inf":
+            self.x = None
+            self.y = None
+        else:
+            if not os.path.exists(os.path.join(self.path, partition + ".csv")):
+                print(os.path.join(self.path, partition + ".csv") + " does not exist, do split?(May overwrite other existing csv)(y/n)", file=sys.stderr)
+                user = input()
+                
+                if user not in ["y", "Y"]:
+                    raise Exception("Canceled")
+                self._split_train_val_test_csv()
+            df = pd.read_csv(os.path.join(self.path, partition + ".csv"))
+
+            self.x = df["x"].values
+            self.y = df["y"].values
+
+        # store dictionary to dict_store
+        # if not os.path.exists(self.dict_store):
+        json.dump(self.dict, open(self.dict_store, "w"))
+
+    def __getitem__(self, index):
+        if self.partition == "train":
+            return self.train_augs(self.read_x(self.x[index]), self.read_y(self.y[index]))
+        elif self.partition == "val" or self.partition == "test":
+            return self.test_augs(self.read_x(self.x[index]), self.read_y(self.y[index]))
+        else:
+            raise Exception("Not implemented")
+    def _split_train_val_test_csv(self):
+        """
+        This should be a function of class dataset
+        """
+        train_ratio, val_ratio, test_ratio = self.config["train_val_test_ratio"]
+        if train_ratio + val_ratio + test_ratio != 1:
+            raise Exception("train ratio + val ratio + test ratio should be 1")
+        self._generate_all_csv()
+
+        all_df = pd.read_csv(os.path.join(self.path, "all.csv"))
+        all_df = all_df.sample(frac=1).reset_index(drop=True)
+        # print(all_df.info)
+        length = all_df.shape[0]
+        all_df.iloc[:int(train_ratio * length), :].to_csv(os.path.join(self.path, "train.csv"), index=False)
+        all_df.iloc[int(train_ratio * length) : int((train_ratio + val_ratio) * length), :].to_csv(os.path.join(self.path, "val.csv"), index=False)
+        all_df.iloc[int((train_ratio + val_ratio) * length): , :].to_csv(os.path.join(self.path, "test.csv"), index=False)
+    
+    
+
+    def _generate_all_csv(self):
+        """
+        This should be written by user
+        """
+        allcsv = open(os.path.join(self.path, "all.csv"), "w")
+        allcsv.write("x,y\n")
+        x_list, y_list = self.get_all_xy_and_preprocess()
+        for x, y in zip(x_list, y_list):
+            allcsv.write(x + "," + y + "\n")
+       
+    # USER ZONE
+    def preprocess(self, *args):
+        # 1. replace y values
+        # 2. generate dictionary
+        ext_y = args[0]
+        np_y = np.array(Image.open(ext_y))
+        set_y = set(np_y.flatten())
+
+        if "_counter" not in self.dict:
+            self.dict["_counter"] = 0
+        for i in set_y:
+            i = int(i)
+            if i not in self.dict:
+                self.dict[i] = self.dict["_counter"]
+                self.dict["_counter"] += 1
+
+        df_y = pd.DataFrame(np.array(Image.open(ext_y))).replace(self.dict)
+        np_y = df_y.values.astype(int)
+        np_path = os.path.splitext(ext_y)[0] + ".npy"
+        np.save(np_path, np_y)
+        return np_path
+
+
+
+
+    def get_all_xy_and_preprocess(self):
+        """
+        Written by user
+        """
+        all_x, all_y = [], []
+        y_dir = os.path.join(self.path, "SegmentationClass")
+
+        
+        for y in tqdm(os.listdir(y_dir)):
+            if os.path.splitext(y)[1] != ".png":
+                continue
+            ext_y = os.path.join(y_dir, y)
+            # preprocess
+            proc_ext_y = self.preprocess(ext_y)
+            name, _ = os.path.splitext(y)
+            ext_x = os.path.join(self.path, "JPEGImages", name + ".jpg")
+            if not os.path.exists(ext_x):
+                raise Exception("Not Found: ", ext_x)
+            all_x.append(ext_x)
+            all_y.append(proc_ext_y)
+
+        return all_x, all_y
+    def read_x(self, x):
+        """
+        Input:
+        x: an element in all_x from get_all_xy
+
+        Output:
+        an object to be called by xx_augs (e.g. a PIL image object)
+        """
+        return Image.open(x)
+
+
+    def read_y(self, y):
+        """
+        Input:
+        x: an element in all_x from get_all_xy
+
+        Output:
+        an object to be called by xx_augs (e.g. a PIL image object)
+        """
+        # y should be converted into indices
+        return np.load(y)
+
+    def train_augs(self, x, y):
+        """
+        This should be written by user
+        """
+        transform = T.ToTensor()
+        return transform(x), transform(y)
+    def test_augs(self, x, y):
+        """
+        This should be written by user
+        """
+        transform = T.ToTensor()
+        return transform(x), transform(y)
+
+
 if __name__ == "__main__":
-    pcds = PCCls("train", {"dataset":"ModelNet10", "train_val_test_ratio":[0.8, 0.1, 0.1], "exp_name":"test", "num_samples":4096})
-    pcds.visualize(pcds[41][0])
-    print(pcds[41][1])
+    # pcds = PCCls("train", {"dataset":"ModelNet10", "train_val_test_ratio":[0.8, 0.1, 0.1], "exp_name":"test", "num_samples":4096})
+    # pcds.visualize(pcds[41][0])
+    # print(pcds[41][1])
+
+    seg = ImgSeg("train", {"dataset":"VOC2012", "train_val_test_ratio":[0.8, 0.1, 0.1], "exp_name":"test"})
+    x, y = seg[42]
+    for i in range(y.shape[1]):
+        for j in range(y.shape[2]):
+            if y[0, i, j] == 44:
+                x[:, i, j] = 0
+    plt.imshow(x.permute(1, 2, 0))
+    plt.show()
+    print(x.shape)
+    print(y.shape)
+
     
 # Notes:
 # ModelNet and shapenet both are artificial mesh datasets. Why not learn on mesh directly
