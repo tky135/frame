@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from model import *
 from preprocess import *
 from util import *
-from data import ImgCls, PCCls
+from data import *
 from functions import acc_fn, RMSElog, CEloss, class_acc
 import yaml
 import datetime
@@ -21,10 +21,12 @@ from sklearn import metrics
 loss_fn = CEloss
 acc_fn = class_acc
 ############ DATA SET ##############
-DATASET = PCCls
+DATASET = ImgSeg
 ############ MODEL #################
 def get_model(config):
-    return config["model"](output_channels=10)
+    # return config["model"](output_channels=10)
+    model = torch.hub.load('pytorch/vision:v0.10.0', 'fcn_resnet50', pretrained=False)
+    return model
 ####################################
 
 
@@ -41,6 +43,7 @@ def train(config, log):
 
     model = get_model(config).to(device)
     # model = torch.nn.Sequential(nn.Linear(18, 32), nn.ReLU(), nn.Linear(32, 1)).to(device)
+    print(model)
     if device != torch.device("cpu"):
         model = nn.DataParallel(model)
 

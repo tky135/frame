@@ -353,6 +353,10 @@ class ImgSeg(Dataset):
             return self.test_augs(self.read_x(self.x[index]), self.read_y(self.y[index]))
         else:
             raise Exception("Not implemented")
+
+
+    def __len__(self):
+        return len(self.y)
     def _split_train_val_test_csv(self):
         """
         This should be a function of class dataset
@@ -455,8 +459,13 @@ class ImgSeg(Dataset):
         """
         This should be written by user
         """
-        transform = T.ToTensor()
-        return transform(x), transform(y)
+        x, y = T.functional.to_tensor(x), T.functional.to_tensor(y)
+        height, width = 200, 300
+        ### TODO what if the image is smaller than crop height and width? 
+        rect = T.RandomCrop.get_params(x, (height, width))
+        x_p = T.functional.crop(x, *rect)
+        y_p = T.functional.crop(y, *rect)
+        return x_p, y_p
     def test_augs(self, x, y):
         """
         This should be written by user

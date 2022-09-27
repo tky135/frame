@@ -8,7 +8,7 @@ do_split:
 model:
   Pct
 dataset:
-  ModelNet10
+  VOC2012
 cuda:
   # if True, try to use GPU, else use CPU
   True
