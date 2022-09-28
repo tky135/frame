@@ -1,8 +1,7 @@
 import os
 import numpy as np
-from torch.utils.data import Dataset
 # from util import readMNIST
-# from preprocess import split_train_val_test_csv
+from preprocess import split_train_val_test_csv
 import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib import image
@@ -92,6 +91,13 @@ test_augs = T.Compose([
 #     def __len__(self):
 #         retur:n self.x.shape[0]
 
+
+### base dataset class
+class Dataset(torch.utils.data.Dataset):
+    def __init__(self) -> None:
+        super().__init__()
+
+
 class ImgCls(Dataset):
 
     """
@@ -125,7 +131,7 @@ class ImgCls(Dataset):
             # give one standard to label2int and int2label
             dict_file = os.path.join(os.path.join("experiments", config["exp_name"]), "dictionary.json")
             if partition == "train" and not os.path.exists(dict_file):
-                cifar_types = df["label"].unique()
+                cifar_types = df["y"].unique()
                 dictionary = {"label2int" : dict(zip(cifar_types, range(len(cifar_types)))), "int2label" : dict(zip(range(len(cifar_types)), cifar_types))}
                 with open(dict_file, "w") as f:
                     json.dump(dictionary, f)
@@ -136,10 +142,10 @@ class ImgCls(Dataset):
                 raise Exception("dictionary.json file must be created by the train experiment")
             
             label2int = dictionary["label2int"]
-            df["label"] = df["label"].replace(label2int)
+            df["y"] = df["y"].replace(label2int)
 
-            self.y = df["label"].values
-            self.x = df["image"].values
+            self.y = df["y"].values
+            self.x = df["x"].values
     def __getitem__(self, index):
 
         if self.partition == "train":

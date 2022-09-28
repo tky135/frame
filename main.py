@@ -21,10 +21,10 @@ from sklearn import metrics
 loss_fn = CEloss
 acc_fn = class_acc
 ############ DATA SET ##############
-DATASET = ImgSeg
+# DATASET = ImgSeg
 ############ MODEL #################
 def get_model(config):
-    return config["model"](n_category=22)
+    return config["model"](n_category=22) ### TODO get rid of this
     # model = torch.hub.load('pytorch/vision:v0.10.0', 'fcn_resnet50', pretrained=False)
     # return model
 ####################################
@@ -36,8 +36,8 @@ def train(config, log):
     print("Device: ", device)
 
     # set train dataloader
-    train_loader = DataLoader(DATASET(partition="train", config=config), batch_size=config["batch_size"], shuffle=True, drop_last=False)
-    val_loader = DataLoader(DATASET(partition="val", config=config), batch_size=config["batch_size"], shuffle=False, drop_last=False)
+    train_loader = DataLoader(config["task"](partition="train", config=config), batch_size=config["batch_size"], shuffle=True, drop_last=False)
+    val_loader = DataLoader(config["task"](partition="val", config=config), batch_size=config["batch_size"], shuffle=False, drop_last=False)
 
     # set model
 
@@ -94,7 +94,7 @@ def train(config, log):
             # move to device
             x = x.to(device)
             y = y.to(device)
-            y_pred = model(x)['out']
+            y_pred = model(x)
             loss = loss_fn(y_pred, y)
             
             # backward pass
@@ -174,7 +174,7 @@ def val(config, log, in_model, val_loader):
     device = torch.device("cuda" if (config["cuda"] and torch.cuda.is_available()) else "cpu")
     model = in_model
         # set val dataloader
-    # val_loader = DataLoader(DATASET(partition="val", config=config), batch_size=config["batch_size"], shuffle=False)
+    # val_loader = DataLoader(config["task"](partition="val", config=config), batch_size=config["batch_size"], shuffle=False)
 
     # set model to val
     model.eval()
@@ -190,7 +190,7 @@ def val(config, log, in_model, val_loader):
             y = y.to(device)
 
             # forward pass
-            y_pred = model(x)['out']
+            y_pred = model(x)
             loss = loss_fn(y_pred, y)
             acc = acc_fn(y_pred, y)
             
@@ -214,7 +214,7 @@ def test(config):
     model_path = "experiments/" + config["exp_name"] + "/model.t7"
     model.load_state_dict(torch.load(model_path))
 
-    test_loader = DataLoader(DATASET(partition="test", config=config), batch_size=config["batch_size"], shuffle=False, drop_last=False)
+    test_loader = DataLoader(config["task"](partition="test", config=config), batch_size=config["batch_size"], shuffle=False, drop_last=False)
 
     # set model to val
     model.eval()
@@ -260,7 +260,7 @@ def inference(config):
     model_path = "experiments/" + config["exp_name"] + "/model.t7"
     model.load_state_dict(torch.load(model_path))
     model.eval()
-    inf_dataset = DATASET(partition="inf", config=config)
+    inf_dataset = config["task"](partition="inf", config=config)
     inf_loader = DataLoader(inf_dataset, batch_size=1, shuffle=False, drop_last=False)
 
 
@@ -303,15 +303,16 @@ if __name__ == "__main__":
     parser.add_argument("--dataset", type=str, default=None)
     parser.add_argument("-f", "--force", type=str, default=None)
     parser.add_argument("--continue", type=bool, default=None)
+    parser.add_argument("--task", type=str, default=None)
     args = parser.parse_args()
     
-
+    # overwrite config if provided in command line argument
     for arg_name in dir(args):
         if (arg_name[0] == '_' or not getattr(args, arg_name)):
             continue
         config[arg_name] = getattr(args, arg_name)
     # arguments that might require evaluation
-    req_eval = ["lr", "weight_decay", "model"]
+    req_eval = ["lr", "weight_decay", "model", "task"]
     for arg_name in req_eval:
         if type(arg_name) is not str:
             continue

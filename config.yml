@@ -1,14 +1,15 @@
 #### general
-
+task:
+  ImgCls
 exp_type:
   train
 do_split:
   # if True, discard previous train val test split(if any) and split 
   False
 model:
-  FCN
+  ResNet18
 dataset:
-  VOC2012
+  lung
 cuda:
   # if True, try to use GPU, else use CPU
   True

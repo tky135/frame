@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from pointnet2_ops import pointnet2_utils
+# from pointnet2_ops import pointnet2_utils
 import struct
 from cv2 import split
 import numpy as np

@@ -109,7 +109,7 @@ class FCN(nn.Module):
         if n_category != 21:
             self.net.classifier[4] = nn.Conv2d(in_channels=self.net.classifier[4].in_channels, out_channels=n_category, kernel_size=self.net.classifier[4].kernel_size, stride=self.net.classifier[4].stride)
     def forward(self, x):
-        return self.net(x)
+        return self.net(x)['out']
 
 def get_n_params(model):
     pp=0
