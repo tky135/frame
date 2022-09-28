@@ -2,7 +2,7 @@ import os
 import numpy as np
 from torch.utils.data import Dataset
 # from util import readMNIST
-from preprocess import split_train_val_test_csv
+# from preprocess import split_train_val_test_csv
 import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib import image
@@ -15,6 +15,8 @@ import trimesh
 import warnings
 from tqdm import tqdm
 import sys
+from torch import Tensor
+from typing import Optional, Tuple, List
 ################### Transforms #######################
 
 train_augs = T.Compose([
@@ -330,13 +332,14 @@ class ImgSeg(Dataset):
             self.x = None
             self.y = None
         else:
-            if not os.path.exists(os.path.join(self.path, partition + ".csv")):
+            if config["do_split"] == True or not os.path.exists(os.path.join(self.path, partition + ".csv")):
                 print(os.path.join(self.path, partition + ".csv") + " does not exist, do split?(May overwrite other existing csv)(y/n)", file=sys.stderr)
                 user = input()
                 
                 if user not in ["y", "Y"]:
                     raise Exception("Canceled")
                 self._split_train_val_test_csv()
+                config["do_split"] = False  # only do_split  once
             df = pd.read_csv(os.path.join(self.path, partition + ".csv"))
 
             self.x = df["x"].values
@@ -391,22 +394,23 @@ class ImgSeg(Dataset):
         # 1. replace y values
         # 2. generate dictionary
         ext_y = args[0]
-        np_y = np.array(Image.open(ext_y))
-        set_y = set(np_y.flatten())
+        # np_y = np.array(Image.open(ext_y))
+        # set_y = set(np_y.flatten())
+        # print("before", set_y)
 
-        if "_counter" not in self.dict:
-            self.dict["_counter"] = 0
-        for i in set_y:
-            i = int(i)
-            if i not in self.dict:
-                self.dict[i] = self.dict["_counter"]
-                self.dict["_counter"] += 1
-
-        df_y = pd.DataFrame(np.array(Image.open(ext_y))).replace(self.dict)
-        np_y = df_y.values.astype(int)
-        np_path = os.path.splitext(ext_y)[0] + ".npy"
-        np.save(np_path, np_y)
-        return np_path
+        # if "_counter" not in self.dict:
+        #     self.dict["_counter"] = 0
+        # for i in set_y:
+        #     i = str(int(i))
+        #     if i not in self.dict:
+        #         self.dict[i] = self.dict["_counter"]
+        #         self.dict["_counter"] += 1
+        # df_y = pd.DataFrame(np.array(Image.open(ext_y))).replace(self.dict)
+        # np_y = df_y.values.astype(int)
+        # np_path = os.path.splitext(ext_y)[0] + ".npy"
+        # # print("after", set(np_y.flatten()))
+        # np.save(np_path, np_y)
+        return ext_y # no preprocess needed
 
 
 
@@ -453,25 +457,104 @@ class ImgSeg(Dataset):
         an object to be called by xx_augs (e.g. a PIL image object)
         """
         # y should be converted into indices
-        return np.load(y)
+        return Image.open(y)
+
+    # copied & modified from functional_tensor.py
+    def _pad_symmetric(self, img: Tensor, padding: List[int]) -> Tensor:
+        """
+        pad: List[int]. 
+                If len is 2, expect [y_dir, x_dir]. 
+                If len is 4, expect [left, right, top, down]
+        """
+        # padding is left, right, top, bottom
+        if len(padding) == 2:
+            # if padding len is 2, expect: [y direction, x direction]
+            padding = [padding[1], padding[1], padding[0], padding[0]]
+        in_sizes = img.size()
+
+        _x_indices = [i for i in range(in_sizes[-1])]  # [0, 1, 2, 3, ...]
+        left_indices = [i for i in range(padding[0] - 1, -1, -1)]  # e.g. [3, 2, 1, 0]
+        right_indices = [-(i + 1) for i in range(padding[1])]  # e.g. [-1, -2, -3]
+        x_indices = torch.tensor(left_indices + _x_indices + right_indices, device=img.device)
+
+        _y_indices = [i for i in range(in_sizes[-2])]
+        top_indices = [i for i in range(padding[2] - 1, -1, -1)]
+        bottom_indices = [-(i + 1) for i in range(padding[3])]
+        y_indices = torch.tensor(top_indices + _y_indices + bottom_indices, device=img.device)
+
+        ndim = img.ndim
+        if ndim == 3:
+            return img[:, y_indices[:, None], x_indices[None, :]]
+        elif ndim == 4:
+            return img[:, :, y_indices[:, None], x_indices[None, :]]
+        elif ndim == 2:
+            return img[y_indices[:, None], x_indices[None, :]]
+        else:
+            raise RuntimeError("Symmetric padding of N-D tensors are not supported yet")
+
+    def _random_crop(self, x: Tensor, y: Tensor, shape: Tuple[int, int]):
+        """
+        Random cropping for sementic segmentation. If input shape is less than desired crop shape, symmetric, even padding is applied. img and labels will be cropped (and padded) in the same way. 
+        Input: 
+        x: Tensor with shape [3, h, w]
+        y: Tensor with shape [h, w]
+        shape: Tuple[int, int] Desired shape with [h, w]
+        
+        """
+        assert x.shape[1] == y.shape[0] and x.shape[2] == y.shape[1]
+        pad = torch.tensor(shape) - torch.tensor(x.shape[1:])
+        pad[pad < 0] = 0
+        pad = torch.div(pad + 1, 2, rounding_mode="floor")
+        if torch.max(pad) > 0:
+            # print("before padding: ", x.shape, y.shape)
+            pad = list(pad.numpy())
+            # print(pad)
+            x, y = self._pad_symmetric(x, pad), self._pad_symmetric(y, pad)
+            # print("after padding: ", x.shape, y.shape)
+            # plt.imshow(x.permute(1, 2, 0))
+            # plt.savefig("x.png")
+            # plt.imshow(y)
+            # plt.savefig("y.png")
+            # raise Exception("break")
+        # raise Exception("break")
+        rect = T.RandomCrop.get_params(x, shape)
+        return T.functional.crop(x, *rect), T.functional.crop(y, *rect)
 
     def train_augs(self, x, y):
         """
         This should be written by user
         """
-        x, y = T.functional.to_tensor(x), T.functional.to_tensor(y)
-        height, width = 200, 300
-        ### TODO what if the image is smaller than crop height and width? 
-        rect = T.RandomCrop.get_params(x, (height, width))
-        x_p = T.functional.crop(x, *rect)
-        y_p = T.functional.crop(y, *rect)
-        return x_p, y_p
+        x, y = T.functional.to_tensor(x), torch.tensor(np.array(y), dtype=torch.long)
+
+        return self._random_crop(x, y, shape=(200, 300))
+        # height, width = 200, 300
+        # ### TODO what if the image is smaller than crop height and width?
+        # # print(x.shape, y.shape)
+
+        # # pad if needed
+        # pad = torch.tensor((height, width)) - torch.tensor(x.shape[1:])
+        # pad[pad < 0] = 0
+        # pad = torch.div(pad + 1, 2, rounding_mode="floor")
+        # if torch.max(pad) > 0:
+        #     print("before padding: ", x.shape, y.shape)
+        #     pad = list(pad.numpy())
+        #     print(pad)
+        #     x, y = self._pad_symmetric(x, pad), self._pad_symmetric(y, pad)
+        #     print("after padding: ", x.shape, y.shape)
+        #     # plt.imshow(x.permute(1, 2, 0))
+        #     # plt.savefig("x.png")
+        #     # plt.imshow(y)
+        #     # plt.savefig("y.png")
+        #     # raise Exception("break")
+        # # raise Exception("break")
+        # rect = T.RandomCrop.get_params(x, (height, width))
+        # x_p = T.functional.crop(x, *rect)
+        # y_p = T.functional.crop(y, *rect)
     def test_augs(self, x, y):
         """
         This should be written by user
         """
-        transform = T.ToTensor()
-        return transform(x), transform(y)
+        return self.train_augs(x, y)
 
 
 if __name__ == "__main__":

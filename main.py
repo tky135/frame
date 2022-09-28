@@ -24,9 +24,9 @@ acc_fn = class_acc
 DATASET = ImgSeg
 ############ MODEL #################
 def get_model(config):
-    # return config["model"](output_channels=10)
-    model = torch.hub.load('pytorch/vision:v0.10.0', 'fcn_resnet50', pretrained=False)
-    return model
+    return config["model"](n_category=22)
+    # model = torch.hub.load('pytorch/vision:v0.10.0', 'fcn_resnet50', pretrained=False)
+    # return model
 ####################################
 
 
@@ -94,7 +94,7 @@ def train(config, log):
             # move to device
             x = x.to(device)
             y = y.to(device)
-            y_pred = model(x)
+            y_pred = model(x)['out']
             loss = loss_fn(y_pred, y)
             
             # backward pass
@@ -190,7 +190,7 @@ def val(config, log, in_model, val_loader):
             y = y.to(device)
 
             # forward pass
-            y_pred = model(x)
+            y_pred = model(x)['out']
             loss = loss_fn(y_pred, y)
             acc = acc_fn(y_pred, y)
             
@@ -247,6 +247,9 @@ def test(config):
 
     print("testing: ", avg_ev_loss, avg_ev_acc)
     return avg_ev_loss, avg_ev_acc
+
+
+### TODO add displaying for different tasks
 
 def inference(config):
 
@@ -319,12 +322,12 @@ if __name__ == "__main__":
     print(config["exp_name"])
     # raise Exception("break")
     # try to split train val test
-    if config["do_split"]:
-        if config["exp_type"] != "train":
-            user = input("Your experiment type is: " + config["exp_type"] + ". Are you sure you want to do split? (y/n)")
-            if user not in ["Y", "y"]:
-                raise Exception("Canceled")
-        split_train_val_test_csv(data_folder=os.path.join("/data", config["dataset"]), train_ratio=config["train_val_test_ratio"][0], val_ratio=config["train_val_test_ratio"][1], test_ratio=config["train_val_test_ratio"][2])
+    # if config["do_split"]:
+    #     if config["exp_type"] != "train":
+    #         user = input("Your experiment type is: " + config["exp_type"] + ". Are you sure you want to do split? (y/n)")
+    #         if user not in ["Y", "y"]:
+    #             raise Exception("Canceled")
+    #     split_train_val_test_csv(data_folder=os.path.join("/data", config["dataset"]), train_ratio=config["train_val_test_ratio"][0], val_ratio=config["train_val_test_ratio"][1], test_ratio=config["train_val_test_ratio"][2])
     if config["exp_type"] == "train":
         # make output directories
 

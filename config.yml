@@ -6,7 +6,7 @@ do_split:
   # if True, discard previous train val test split(if any) and split 
   False
 model:
-  Pct
+  FCN
 dataset:
   VOC2012
 cuda:

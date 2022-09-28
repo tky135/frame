@@ -101,6 +101,16 @@ class MobileNetV2(nn.Module):
     def forward(self, x):
         y = self.net(x)
         return y
+
+class FCN(nn.Module):
+    def __init__(self, n_category=21, pretrained=False):
+        super().__init__()
+        self.net = torch.hub.load('pytorch/vision:v0.10.0', 'fcn_resnet50', pretrained=pretrained)
+        if n_category != 21:
+            self.net.classifier[4] = nn.Conv2d(in_channels=self.net.classifier[4].in_channels, out_channels=n_category, kernel_size=self.net.classifier[4].kernel_size, stride=self.net.classifier[4].stride)
+    def forward(self, x):
+        return self.net(x)
+
 def get_n_params(model):
     pp=0
     for p in list(model.parameters()):

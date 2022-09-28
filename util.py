@@ -1,6 +1,12 @@
 import torch
 import torch.nn.functional as F
 from pointnet2_ops import pointnet2_utils
+import struct
+from cv2 import split
+import numpy as np
+import os
+import matplotlib.pyplot as plt
+from sklearn import metrics
 
 def cal_loss(pred, gold, smoothing=True):
     ''' Calculate cross entropy loss, apply label smoothing if needed. '''
@@ -20,18 +26,6 @@ def cal_loss(pred, gold, smoothing=True):
         loss = F.cross_entropy(pred, gold, reduction='mean')
 
     return loss
-
-class IOStream():
-    def __init__(self, path):
-        self.f = open(path, 'a')
-
-    def cprint(self, text):
-        print(text)
-        self.f.write(text+'\n')
-        self.f.flush()
-
-    def close(self):
-        self.f.close()
 
 def square_distance(src, dst):
     """
@@ -137,3 +131,11 @@ def sample_and_group(npoint, radius, nsample, xyz, points):
     grouped_points_norm = grouped_points - new_points.view(B, S, 1, -1)
     new_points = torch.cat([grouped_points_norm, new_points.view(B, S, 1, -1).repeat(1, 1, nsample, 1)], dim=-1)
     return new_xyz, new_points
+
+
+def plot_confusion_matrix(confusion_matrix, labels):
+    display = metrics.ConfusionMatrixDisplay(confusion_matrix = confusion_matrix, display_labels = labels)
+    display.plot()
+    plt.savefig("confusion_matrix.jpg")
+
+
