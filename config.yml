@@ -33,7 +33,7 @@ momentum:
 weight_decay:
   1e-4
 batch_size:
-  32
+  8
 validate:
   # if True, do validation at the end of each epoch
   True
