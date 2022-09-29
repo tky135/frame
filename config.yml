@@ -1,15 +1,15 @@
 #### general
 task:
-  ImgCls
+  ImgSeg
 exp_type:
   train
 do_split:
   # if True, discard previous train val test split(if any) and split 
-  False
+  True
 model:
-  ResNet18
+  FCN
 dataset:
-  lung
+  VOC2012
 cuda:
   # if True, try to use GPU, else use CPU
   True
@@ -20,7 +20,7 @@ train_val_test_ratio:
 exp_name:
   # name of the experiment
 epochs:
-  50
+  5
 force:
   True
 
@@ -33,7 +33,7 @@ momentum:
 weight_decay:
   1e-4
 batch_size:
-  8
+  32
 validate:
   # if True, do validation at the end of each epoch
   True

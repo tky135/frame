@@ -36,8 +36,8 @@ def train(config, log):
     print("Device: ", device)
 
     # set train dataloader
-    train_loader = DataLoader(config["task"](partition="train", config=config), batch_size=config["batch_size"], shuffle=True, drop_last=False)
-    val_loader = DataLoader(config["task"](partition="val", config=config), batch_size=config["batch_size"], shuffle=False, drop_last=False)
+    train_loader = DataLoader(config["task"](partition="train", config=config), batch_size=config["batch_size"], shuffle=True, drop_last=False, num_workers=7)
+    val_loader = DataLoader(config["task"](partition="val", config=config), batch_size=config["batch_size"], shuffle=False, drop_last=False, num_workers=7)
 
     # set model
 

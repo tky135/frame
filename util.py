@@ -7,7 +7,9 @@ import numpy as np
 import os
 import matplotlib.pyplot as plt
 from sklearn import metrics
-
+import torchvision
+from typing import Union
+from PIL import Image
 def cal_loss(pred, gold, smoothing=True):
     ''' Calculate cross entropy loss, apply label smoothing if needed. '''
 
@@ -138,4 +140,24 @@ def plot_confusion_matrix(confusion_matrix, labels):
     display.plot()
     plt.savefig("confusion_matrix.jpg")
 
+def read_img(path: str) -> torch.Tensor:
+    return torchvision.io.read_image(path).squeeze()
+def write_img(img: Union[np.ndarray, torch.Tensor], path: str) -> None:
+    if issubclass(type(img), torch.Tensor):
+        img = img.numpy()
+    if issubclass(type(img), np.ndarray):
+        img = img.squeeze()
+        if img.shape[0] == 3 and len(img.shape) == 3:
+            img = img.transpose(1, 2, 0)
+        elif (img.shape[-1] == 3 and len(img.shape) == 3) or len(img.shape) == 2:
+            pass
+        else:
+            raise Exception("image with shape: ", str(img.shape), "is not supported")
 
+
+        if img.dtype in [np.float32, np.float16, np.float64]:
+            img = (img / 255).astype(np.uint8)
+    else:
+        print("type %s not supported", type(img))
+    img = Image.fromarray(img).save(path)
+    

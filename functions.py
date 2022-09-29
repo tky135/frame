@@ -6,7 +6,7 @@ def CEloss(y_pred, y):
     # print(y.squeeze().shape)
     # print(set(y.detach().cpu().numpy().flatten()))
     # raise Exception("break")
-    y[y == 255] = 21 ### Tesing
+    # y[y == 255] = 21 ### Tesing
 
     ### MUST MAKE SURE THE SHAPES ARE CORRECT
     z = torch.nn.functional.cross_entropy(y_pred, y)
