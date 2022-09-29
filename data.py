@@ -200,8 +200,23 @@ class ImgCls(Dataset):
                 Y.append(self.dict[folder])
         return X, Y
     def read_xy(self, x, y):
+        # for train, val and test
         return T.functional.to_tensor(Image.open(x)), y
 
+class ImgSeg(Dataset):
+    def __init__(self, partition, config) -> None:
+        super().__init__(partition, config)
+    def get_all_xy_and_preprocess(self):
+        X, Y = [], []
+        for y in os.listdir(os.path.join(self.path, "SegmentationClass")):
+            ext_y = os.path.join(self.path, "SegmentationClass", y)
+            name, _ = os.path.splitext(y)
+            ext_x = os.path.join(self.path, "JPEGImages", name + ".jpg")
+            X.append(ext_x)
+            Y.append(ext_y)
+        return X, Y
+    def read_xy(self, x, y):
+        return T.functioni.to_tensor(Image.open(x)), np.array(Image.open(x), dtype=np.int64)
 
 # class ImgCls(torch.utils.data.Dataset):
 
