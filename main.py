@@ -24,7 +24,7 @@ acc_fn = class_acc
 # DATASET = ImgSeg
 ############ MODEL #################
 def get_model(config):
-    return config["model"](n_category=22) ### TODO get rid of this
+    return config["model"]() ### TODO get rid of this
     # model = torch.hub.load('pytorch/vision:v0.10.0', 'fcn_resnet50', pretrained=False)
     # return model
 ####################################
@@ -36,8 +36,8 @@ def train(config, log):
     print("Device: ", device)
 
     # set train dataloader
-    train_loader = DataLoader(config["task"](partition="train", config=config), batch_size=config["batch_size"], shuffle=True, drop_last=False, num_workers=7)
-    val_loader = DataLoader(config["task"](partition="val", config=config), batch_size=config["batch_size"], shuffle=False, drop_last=False, num_workers=7)
+    train_loader = DataLoader(config["task"](partition="train", config=config), batch_size=config["batch_size"], shuffle=True, drop_last=False, num_workers=8)
+    val_loader = DataLoader(config["task"](partition="val", config=config), batch_size=config["batch_size"], shuffle=False, drop_last=False, num_workers=8)
 
     # set model
 

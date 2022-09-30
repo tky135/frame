@@ -1,15 +1,15 @@
 #### general
 task:
-  ImgSeg
+  PCCls
 exp_type:
   train
 do_split:
   # if True, discard previous train val test split(if any) and split 
-  True
+  False
 model:
-  FCN
+  Pct
 dataset:
-  VOC2012
+  ModelNet10
 cuda:
   # if True, try to use GPU, else use CPU
   True
