@@ -168,7 +168,6 @@ class ImgSeg(Dataset):
             return img[y_indices[:, None], x_indices[None, :]]
         else:
             raise RuntimeError("Symmetric padding of N-D tensors are not supported yet")
-
     def _random_crop(self, x: Tensor, y: Tensor, shape: Tuple[int, int]):
         """
         Random cropping for sementic segmentation. If input shape is less than desired crop shape, symmetric, even padding is applied. img and labels will be cropped (and padded) in the same way. 
@@ -272,82 +271,7 @@ class PCCls(Dataset):
         # sample from mesh
         pc = self._normalize(self._sample_pc_from_mesh(mesh, 1024))
         return torch.tensor(pc, dtype=torch.float32), self.dict[y]
-        
 
-# class PCCls(Dataset):
-#     def __init__(self, partition, config) -> None:
-#         super().__init__()
-#         self.partition = partition
-#         self.config = config
-#         # root path of the dataset
-#         self.path = os.path.join("/data", config["dataset"])
-
-#         ## TODO
-#         if partition == "inf":
-#             self.x = None
-#             self.y = None
-
-#         else:
-#             # if no csv for partition exist, try split
-#             if not os.path.exists(os.path.join(self.path, partition + ".csv")):
-#                 user = input(os.path.join(self.path, partition + ".csv") + " does not exist, do split?(May overwrite other existing csv)(y/n)")
-#                 if user not in ["y", "Y"]:
-#                     raise Exception("Canceled")
-#                 split_train_val_test_csv(self.path, config["train_val_test_ratio"][0], config["train_val_test_ratio"][1], config["train_val_test_ratio"][2])
-#             # if so, read a dataframe
-#             df = pd.read_csv(os.path.join(self.path, partition + ".csv"))
-
-        
-#             ## csv: meshfile, class
-
-#             # convert string labels to ints
-#             # give one standard to label2int and int2label
-#             dict_file = os.path.join(os.path.join("experiments", config["exp_name"]), "dictionary.json")
-#             # if train, write dict_file
-#             if partition == "train" and not os.path.exists(dict_file):
-#                 cifar_types = df["y"].unique()
-#                 dictionary = {"label2int" : dict(zip(cifar_types, range(len(cifar_types)))), "int2label" : dict(zip(range(len(cifar_types)), cifar_types))}
-#                 with open(dict_file, "w") as f:
-#                     json.dump(dictionary, f)
-#             elif os.path.exists(dict_file):
-#                 with open(dict_file, "r") as f:
-#                     dictionary = json.load(f)
-#             else:
-#                 raise Exception("dictionary.json file must bImgClse created by the train experiment")
-
-#             label2int = dictionary["label2int"]
-#             df["y"] = df["y"].replace(label2int)
-#             self.y = df["y"].values
-#             self.x = df["x"].values
-#     def __getitem__(self, index):
-#         if self.partition == "train" or self.partition == "val":
-#             mesh = trimesh.load(file_obj=open(os.path.join(self.path, self.x[index])), file_type="off")
-#             pc = trimesh.sample.sample_surface(mesh, self.config["num_samples"])[0]
-#             pc = self.normalize(pc)
-#             return torch.tensor(pc, dtype=torch.float32), self.y[index]
-#     def __len__(self):
-#         return self.x.shape[0]
-
-#     def index_points(self, indices, values):
-#         pass
-#     def normalize(self, pc):
-#         """
-#         np array
-#         """
-#         centroid = np.mean(pc, axis=0)
-#         pc = pc - centroid
-#         m = np.max(np.sqrt(np.sum(pc**2, axis=1)))
-#         pc = pc / m
-#         return pc
-
-#     def visualize(self, pc, label=None):
-#         """
-#         Visualize a point cloud, generate a .obj file (for now)
-#         """
-#         f = open("pc.obj", "w")
-#         for i in range(pc.shape[0]):
-#             f.write("v " + str(float(pc[i, 0])) + " " + str(float(pc[i, 1])) + " " + str(float(pc[i, 2])) + "\n")
-#         f.close()
 class HuBMAP_HPA(Dataset):
     def __init__(self, data_folder) -> None:
         self.data_folder = os.path.join("/data", data_folder)
