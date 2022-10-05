@@ -103,7 +103,7 @@ class MobileNetV2(nn.Module):
         return y
 
 class FCN(nn.Module):
-    def __init__(self, n_category=21, pretrained=False):
+    def __init__(self, n_category=21, pretrained=False, *args, **kwargs):
         super().__init__()
         self.net = torch.hub.load('pytorch/vision:v0.10.0', 'fcn_resnet50', pretrained=pretrained)
         if n_category != 21:

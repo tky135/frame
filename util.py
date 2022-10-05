@@ -140,6 +140,8 @@ def plot_confusion_matrix(confusion_matrix, labels):
     display.plot()
     plt.savefig("confusion_matrix.jpg")
 
+
+# TODO improve speed
 def read_img(path: str) -> torch.Tensor:
     return torchvision.io.read_image(path).squeeze()
 def write_img(img: Union[np.ndarray, torch.Tensor], path: str) -> None:

@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 def CEloss(y_pred, y):
     # celoss = torch.nn.CrossEntropyLoss() # cross entropy includes softmax
     # y_pred = torch.softmax(y_orig, dim=1)
@@ -45,32 +46,22 @@ def acc_fn(y_pred, y):
     
 
 # TODO 
-# def calculate_shape_IoU(pred_np, seg_np):
-#     # pred_np [B, N]        --predicted segmentation label for each point in a Batch
-#     # seg_np  [B, N]        --true segmentation label for each point in a Batch
-#     # label   [B]           --label(0 or 1) for each point cloud
-    
-#     shape_ious = []
-#     for shape_idx in range(seg_np.shape[0]):
-#         # for each point cloud
-#         # print(set(pred_np[shape_idx]))
-#         # print(set(seg_np[shape_idx]))
-#         # print()
-#         if label[shape_idx] == 0:
-#             parts = range(17)
-#         else:
-#             parts = [0]
-#             parts.extend(list(range(17, 33, 1)))
-#         part_ious = []
-#         for part in parts:
-#             # print(part)
-#             I = np.sum(np.logical_and(pred_np[shape_idx] == part, seg_np[shape_idx] == part))
-#             U = np.sum(np.logical_or(pred_np[shape_idx] == part, seg_np[shape_idx] == part))
-#             # print(I, U)
-#             if U == 0:
-#                 iou = 1  # If the union of groundtruth and prediction points is empty, then count part IoU as 1
-#             else:
-#                 iou = I / float(U)
-#             part_ious.append(iou)
-#         shape_ious.append(np.mean(part_ious)) # part IoU averaged
-#     return shape_ious
+def calculate_shape_IoU_np(pred_np, seg_np):
+    # pred_np [B, N]        --predicted segmentation label for each point in a Batch
+    # seg_np  [B, N]        --true segmentation label for each point in a Batch
+    class_ious = []
+    for b in range(seg_np.shape[0]):
+        # get the set of classes
+        print(np.unique(seg_np))
+        for part in parts:
+            # print(part)
+            I = np.sum(np.logical_and(pred_np[shape_idx] == part, seg_np[shape_idx] == part))
+            U = np.sum(np.logical_or(pred_np[shape_idx] == part, seg_np[shape_idx] == part))
+            # print(I, U)
+            if U == 0:
+                iou = 1  # If the union of groundtruth and prediction points is empty, then count part IoU as 1
+            else:
+                iou = I / float(U)
+            part_ious.append(iou)
+        shape_ious.append(np.mean(part_ious)) # part IoU averaged
+    return shape_ious

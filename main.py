@@ -13,7 +13,7 @@ from model import *
 from preprocess import *
 from util import *
 from data import *
-from functions import acc_fn, RMSElog, CEloss, class_acc
+from functions import *
 import yaml
 import datetime
 from sklearn import metrics
@@ -23,8 +23,8 @@ acc_fn = class_acc
 ############ DATA SET ##############
 # DATASET = ImgSeg
 ############ MODEL #################
-def get_model(config):
-    return config["model"]() ### TODO get rid of this
+# def get_model(config):
+#     return config["model"](n_category=22) ### TODO get rid of this
     # model = torch.hub.load('pytorch/vision:v0.10.0', 'fcn_resnet50', pretrained=False)
     # return model
 ####################################
@@ -36,12 +36,16 @@ def train(config, log):
     print("Device: ", device)
 
     # set train dataloader
-    train_loader = DataLoader(config["task"](partition="train", config=config), batch_size=config["batch_size"], shuffle=True, drop_last=False, num_workers=8)
-    val_loader = DataLoader(config["task"](partition="val", config=config), batch_size=config["batch_size"], shuffle=False, drop_last=False, num_workers=8)
+    train_dataset = config["task"](partition="train", config=config)
+    val_dataset = config["task"](partition="val", config=config)
+    train_loader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=True, drop_last=False, num_workers=8)
+    val_loader = DataLoader(val_dataset, batch_size=config["batch_size"], shuffle=False, drop_last=False, num_workers=8)
 
     # set model
+    member_list = inspect.getmembers(config['task'])
 
-    model = get_model(config).to(device)
+    
+    model = config["model"](**config["arg2model"]).to(device)
     # model = torch.nn.Sequential(nn.Linear(18, 32), nn.ReLU(), nn.Linear(32, 1)).to(device)
     print(model)
     if device != torch.device("cpu"):
@@ -103,6 +107,8 @@ def train(config, log):
             optimizer.step()
 
             # calculate other kinds of metrics
+            print(y_pred.shape)
+            print(y.shape)
             with torch.no_grad():
                 acc = acc_fn(y_pred, y)
             
@@ -208,7 +214,7 @@ def val(config, log, in_model, val_loader):
 def test(config):
     device = torch.device("cuda" if (config["cuda"] and torch.cuda.is_available()) else "cpu")
 
-    model = get_model(config)
+    model = config["model"](**config["arg2model"])
     if device != torch.device("cpu"):
         model = nn.DataParallel(model)
     model_path = "experiments/" + config["exp_name"] + "/model.t7"
@@ -254,7 +260,7 @@ def test(config):
 def inference(config):
 
     device = torch.device("cuda" if config["cuda"] else "cpu")
-    model = get_model(config)
+    model = config["model"](**config["arg2model"])
     if device != torch.device("cpu"):
         model = nn.DataParallel(model)
     model_path = "experiments/" + config["exp_name"] + "/model.t7"
@@ -321,6 +327,9 @@ if __name__ == "__main__":
     if not config["exp_name"] or config["exp_name"] == "default":
         config["exp_name"] = config["model"].__name__ + "_" + config["dataset"] + "_" + str(datetime.date.today())
     print(config["exp_name"])
+
+    # generate arguments to model
+    config["arg2model"] = dict([m for m in inspect.getmembers(config['task']) if not (inspect.isfunction(m[1]) or inspect.ismethod(m[1]) or m[0].startswith('_'))])
     # raise Exception("break")
     # try to split train val test
     # if config["do_split"]:

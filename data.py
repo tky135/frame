@@ -18,6 +18,7 @@ import sys
 from torch import Tensor
 from typing import Tuple, List
 from util import read_img, write_img
+import inspect
 ### base dataset class
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, partition, config) -> None:
@@ -136,6 +137,8 @@ class ImgCls(Dataset):
         return T.functional.resize(x, (224, 224))
 
 class ImgSeg(Dataset):
+    n_category = 22
+    input_shape = None
     # copied & modified from functional_tensor.py
     def _pad_symmetric(self, img: Tensor, padding: List[int]) -> Tensor:
         """
@@ -187,13 +190,6 @@ class ImgSeg(Dataset):
             pad = list(pad.numpy())
             # print(pad)
             x, y = self._pad_symmetric(x, pad), self._pad_symmetric(y, pad)
-            # print("after padding: ", x.shape, y.shape)
-            # plt.imshow(x.permute(1, 2, 0))
-            # plt.savefig("x.png")
-            # plt.imshow(y)
-            # plt.savefig("y.png")
-            # raise Exception("break")
-        # raise Exception("break")
         rect = T.RandomCrop.get_params(x, shape)
         return T.functional.crop(x, *rect), T.functional.crop(y, *rect)
 
@@ -230,6 +226,8 @@ class ImgSeg(Dataset):
         return self._random_crop(x, y, (200, 300))
 
 class PCCls(Dataset):
+    n_category = 22
+    input_shape = None
     def __init__(self, partition, config) -> None:
         super().__init__(partition, config)
 
