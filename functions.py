@@ -46,22 +46,22 @@ def acc_fn(y_pred, y):
     
 
 # TODO 
-def calculate_shape_IoU_np(pred_np, seg_np):
-    # pred_np [B, N]        --predicted segmentation label for each point in a Batch
-    # seg_np  [B, N]        --true segmentation label for each point in a Batch
-    class_ious = []
-    for b in range(seg_np.shape[0]):
-        # get the set of classes
-        print(np.unique(seg_np))
-        for part in parts:
-            # print(part)
-            I = np.sum(np.logical_and(pred_np[shape_idx] == part, seg_np[shape_idx] == part))
-            U = np.sum(np.logical_or(pred_np[shape_idx] == part, seg_np[shape_idx] == part))
-            # print(I, U)
-            if U == 0:
-                iou = 1  # If the union of groundtruth and prediction points is empty, then count part IoU as 1
-            else:
-                iou = I / float(U)
+def calculate_shape_IoU_np(y_pred, y):
+    # cpu implementation
+    # y_pred [B, C, H, W]
+    # y      [B, H, W]
+    y_pred, y = y_pred.detach().cpu().numpy(), y.cpu().numpy()
+    y_pred = np.argmax(y_pred, axis=1)
+
+    batch_ious = []
+    for b in range(y.shape[0]):
+        # average over each batch
+        class_set = np.unique(y[b])        
+        part_ious = []
+        for part in class_set:
+            I = np.sum(np.logical_and(y_pred[b] == part, y[b] == part))
+            U = np.sum(np.logical_or(y_pred[b] == part, y[b] == part))
+            iou = I / float(U)
             part_ious.append(iou)
-        shape_ious.append(np.mean(part_ious)) # part IoU averaged
-    return shape_ious
+        batch_ious.append(np.mean(part_ious)) # part IoU averaged
+    return np.mean(batch_ious)

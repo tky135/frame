@@ -107,10 +107,9 @@ def train(config, log):
             optimizer.step()
 
             # calculate other kinds of metrics
-            print(y_pred.shape)
-            print(y.shape)
             with torch.no_grad():
-                acc = acc_fn(y_pred, y)
+                acc = calculate_shape_IoU_np(y_pred, y)
+                # acc = acc_fn(y_pred, y)
             
             avg_tr_loss += loss.item() * y.shape[0]
             avg_tr_acc += acc.item() * y.shape[0]
