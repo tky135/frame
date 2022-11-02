@@ -18,8 +18,7 @@ import sys
 from torch import Tensor
 from typing import Tuple, List
 from util import read_img, write_img
-import inspect
-### base dataset class
+### Level 0: base dataset class
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, partition, config) -> None:
         super().__init__()
@@ -106,6 +105,7 @@ class Dataset(torch.utils.data.Dataset):
     def test_augs(self, x, y):
         raise Exception("Not Implemented")
 
+### example datasets
 class ImgCls(Dataset):
     def __init__(self, partition, config) -> None:
         super().__init__(partition, config)
