@@ -1,6 +1,6 @@
 #### general
 task:
-  # PCCls, ImgCls
+  # PCCls, ImgCls, ImgSeg
   ImgSeg
 exp_type:
   train
@@ -11,7 +11,12 @@ model:
   FCN
 dataset:
   # ModelNet10, VOC2012
-  VOC2012
+  VOC2013
+datapath:
+  /data/VOC2012
+dataroot:
+  /data
+
 cuda:
   # if True, try to use GPU, else use CPU
   True

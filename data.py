@@ -26,7 +26,10 @@ class Dataset(torch.utils.data.Dataset):
         # initialize (ok)
         self.partition = partition
         self.config = config
-        self.path = os.path.join("/data", config["dataset"])
+        if os.path.isdir(config["datapath"]):
+            self.path = config["datapath"]
+        else:
+            self.path = os.path.join(config["dataroot"], config["dataset"])
 
         self.dict_store = os.path.join(self.path, "dict_store.json")
         self.dict = {}

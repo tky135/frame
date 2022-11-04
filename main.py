@@ -17,6 +17,7 @@ from functions import *
 import yaml
 import datetime
 from sklearn import metrics
+import inspect
 ############ VALIDATION ############
 loss_fn = CEloss
 acc_fn = class_acc
@@ -309,6 +310,9 @@ if __name__ == "__main__":
     parser.add_argument("-f", "--force", type=str, default=None)
     parser.add_argument("--continue", type=bool, default=None)
     parser.add_argument("--task", type=str, default=None)
+    parser.add_argument("--model", type=str, default=None)
+    parser.add_argument("--datapath", type=str, default=None)
+    parser.add_argument("--dataroot", type=str, default=None)
     args = parser.parse_args()
     
     # overwrite config if provided in command line argument
