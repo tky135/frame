@@ -18,19 +18,22 @@ import sys
 from torch import Tensor
 from typing import Tuple, List
 from util import read_img, write_img
+from functions import *
+from torch.utils.data import Dataset
 ### Level 0: base dataset class
-class Dataset(torch.utils.data.Dataset):
+class csvDataset(Dataset):
     def __init__(self, partition, config) -> None:
         super().__init__()
 
         # initialize (ok)
         self.partition = partition
         self.config = config
-        if os.path.isdir(config["datapath"]):
-            self.path = config["datapath"]
+        if "data_path" in config["task_data_arg"] and config["task_data_arg"]["data_path"] is not None and os.path.isdir(config["task_data_arg"]["data_path"]):
+            self.path = config["task_data_arg"]["data_path"]
         else:
-            self.path = os.path.join(config["dataroot"], config["dataset"])
-
+            self.path = os.path.join(config["dataroot"], config["data"].__name__)
+            if not os.path.isdir(self.path):
+                os.makedirs(self.path)
         self.dict_store = os.path.join(self.path, "dict_store.json")
         self.dict = {}
 
@@ -108,8 +111,24 @@ class Dataset(torch.utils.data.Dataset):
     def test_augs(self, x, y):
         raise Exception("Not Implemented")
 
-### example datasets
-class ImgCls(Dataset):
+### Level 1: experiment type
+class AutoRegress(csvDataset):
+    train_metric_list = []
+    val_metric_list = []
+    loss_fn = neg_log_likelihood
+    n_values = 20
+    def __init__(self, partition, config) -> None:
+        super().__init__(partition, config)
+    def get_all_xy_and_preprocess(self):
+        count = 5000
+        rand = np.random.RandomState(0)
+        samples = 0.4 + 0.1 * rand.randn(count)
+        data = np.digitize(samples, np.linspace(0.0, 1.0, 20))
+        return data, np.ones_like(data)
+    def read_xy(self, x, y):
+        return torch.tensor(x), torch.tensor(y)
+        
+class ImgCls(csvDataset):
     def __init__(self, partition, config) -> None:
         super().__init__(partition, config)
 
@@ -139,9 +158,11 @@ class ImgCls(Dataset):
         # Resize the image
         return T.functional.resize(x, (224, 224))
 
-class ImgSeg(Dataset):
-    n_category = 22
-    input_shape = None
+class ImgSeg(csvDataset):
+    train_metric_list = [class_acc, calculate_shape_IoU_np]
+    val_metric_list = [calculate_shape_IoU_np, class_acc]
+    loss_fn = CEloss
+
     # copied & modified from functional_tensor.py
     def _pad_symmetric(self, img: Tensor, padding: List[int]) -> Tensor:
         """
@@ -195,40 +216,15 @@ class ImgSeg(Dataset):
             x, y = self._pad_symmetric(x, pad), self._pad_symmetric(y, pad)
         rect = T.RandomCrop.get_params(x, shape)
         return T.functional.crop(x, *rect), T.functional.crop(y, *rect)
-
-
     def __init__(self, partition, config) -> None:
         super().__init__(partition, config)
-    def get_all_xy_and_preprocess(self):
-        X, Y = [], []
-        for y in tqdm(os.listdir(os.path.join(self.path, "SegmentationClass"))):
-            
-            name, ext = os.path.splitext(y)
-            if ext != ".png" or name[-2:] == "_p":
-                continue
-            ext_y = os.path.join(self.path, "SegmentationClass", y)
-            # invoke preprocess
-            ext_y = self.preprocess(ext_y)
-            ext_x = os.path.join(self.path, "JPEGImages", name + ".jpg")
-            X.append(ext_x)
-            Y.append(ext_y)
-        return X, Y
-    def preprocess(self, seg_path):
-        # change occurences of 255 to 21
-        y_np = read_img(seg_path)
-        y_np[y_np == 255] = 21
-        save_path = seg_path + "_p" + ".png"
-        write_img(y_np, save_path)
-        return save_path
-    def read_xy(self, x, y):
-        return self.aug_crop(read_img(x) / 255, read_img(y).type(torch.long))
 
 
     def aug_crop(self, x, y):
         # Cropping to 200 x 300
         return self._random_crop(x, y, (200, 300))
 
-class PCCls(Dataset):
+class PCCls(csvDataset):
     n_category = 22
     input_shape = None
     def __init__(self, partition, config) -> None:
@@ -273,7 +269,7 @@ class PCCls(Dataset):
         pc = self._normalize(self._sample_pc_from_mesh(mesh, 1024))
         return torch.tensor(pc, dtype=torch.float32), self.dict[y]
 
-class HuBMAP_HPA(Dataset):
+class HuBMAP_HPA(csvDataset):
     def __init__(self, data_folder) -> None:
         self.data_folder = os.path.join("/data", data_folder)
     def preprocess(self):
@@ -346,12 +342,41 @@ class HuBMAP_HPA(Dataset):
         plt.imshow(my_img)
         plt.show()
 
-
+### Level 2: dataset
+class VOC2012(ImgSeg):
+    data_path = None
+    n_category = 22
+    input_shape = None
+    def __init__(self, partition, config) -> None:
+        super().__init__(partition, config)
+    def get_all_xy_and_preprocess(self):
+        X, Y = [], []
+        for y in tqdm(os.listdir(os.path.join(self.path, "SegmentationClass"))):
+            
+            name, ext = os.path.splitext(y)
+            if ext != ".png" or name[-2:] == "_p":
+                continue
+            ext_y = os.path.join(self.path, "SegmentationClass", y)
+            # invoke preprocess
+            ext_y = self.preprocess(ext_y)
+            ext_x = os.path.join(self.path, "JPEGImages", name + ".jpg")
+            X.append(ext_x)
+            Y.append(ext_y)
+        return X, Y
+    def preprocess(self, seg_path):
+        # change occurences of 255 to 21
+        y_np = read_img(seg_path)
+        y_np[y_np == 255] = 21
+        save_path = seg_path + "_p" + ".png"
+        write_img(y_np, save_path)
+        return save_path
+    def read_xy(self, x, y):
+        return self.aug_crop(read_img(x) / 255, read_img(y).type(torch.long))
 
 
 if __name__ == "__main__":
     # for testing
-    config = {"dataset":"VOC2012", "train_val_test_ratio":[0.8, 0.1, 0.1], "exp_name":"test"}
+    config = {"data":"VOC2012", "train_val_test_ratio":[0.8, 0.1, 0.1], "exp_name":"test"}
     seg = ImgSeg("train", config)
     x, y = seg[42]
     for i in range(y.shape[1]):

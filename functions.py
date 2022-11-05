@@ -1,5 +1,8 @@
 import torch
 import numpy as np
+
+# This file contains loss functions and metrics for training and evaluation
+# each function takes in y_pred and y, whatever their shapes are. 
 def CEloss(y_pred, y):
     # celoss = torch.nn.CrossEntropyLoss() # cross entropy includes softmax
     # y_pred = torch.softmax(y_orig, dim=1)
@@ -40,10 +43,13 @@ def class_acc(y_pred: torch.Tensor, y: torch.Tensor):
 
 # def seg_acc(y_pred, y):
 #     z = torch.sum((torch.max(y_pred, dim=1)[1] == y)) / (y_pred.shape[0] * y_pred.shape[1] * y_pred.shape[2])
-def acc_fn(y_pred, y):
-    mse = torch.nn.MSELoss()
-    return -torch.sqrt(mse(torch.log(y_pred.reshape(-1)), torch.log(y)))
-    
+# def acc_fn(y_pred, y):
+#     mse = torch.nn.MSELoss()
+#     return -torch.sqrt(mse(torch.log(y_pred.reshape(-1)), torch.log(y)))
+
+def neg_log_likelihood(y_pred, y):
+    assert (y_pred.shape == y.shape)
+    return torch.mean(-y * torch.log(y_pred))
 
 # TODO 
 def calculate_shape_IoU_np(y_pred, y):

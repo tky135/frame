@@ -10,6 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from model import *
+from autoregress_model import *
 from preprocess import *
 from util import *
 from data import *
@@ -20,16 +21,6 @@ from sklearn import metrics
 import inspect
 ############ VALIDATION ############
 loss_fn = CEloss
-acc_fn = class_acc
-############ DATA SET ##############
-# DATASET = ImgSeg
-############ MODEL #################
-# def get_model(config):
-#     return config["model"](n_category=22) ### TODO get rid of this
-    # model = torch.hub.load('pytorch/vision:v0.10.0', 'fcn_resnet50', pretrained=False)
-    # return model
-####################################
-
 
 def train(config, log):
     log.write("TRAIN\n\n")
@@ -37,18 +28,15 @@ def train(config, log):
     print("Device: ", device)
 
     # set train dataloader
-    train_dataset = config["task"](partition="train", config=config)
-    val_dataset = config["task"](partition="val", config=config)
+    train_dataset = config["data"](partition="train", config=config)
+    val_dataset = config["data"](partition="val", config=config)
     train_loader = DataLoader(train_dataset, batch_size=config["batch_size"], shuffle=True, drop_last=False, num_workers=8)
     val_loader = DataLoader(val_dataset, batch_size=config["batch_size"], shuffle=False, drop_last=False, num_workers=8)
 
     # set model
-    member_list = inspect.getmembers(config['task'])
-
-    
-    model = config["model"](**config["arg2model"]).to(device)
+    model = config["model"](**config["task_data_arg"]).to(device)
     # model = torch.nn.Sequential(nn.Linear(18, 32), nn.ReLU(), nn.Linear(32, 1)).to(device)
-    print(model)
+    # print(model)
     if device != torch.device("cpu"):
         model = nn.DataParallel(model)
 
@@ -77,10 +65,8 @@ def train(config, log):
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.1 ** (1 / config["epochs"]))
 
     # set display and monitor list
-    tr_loss_l = []
-    tr_acc_l = []
-    ev_loss_l = []
-    ev_acc_l = []
+    tr_global_metrics_l = {}
+    val_global_metrics_l = {}
 
     # set best model
     best_acc = -1e10
@@ -90,33 +76,38 @@ def train(config, log):
         log.write("Epoch " + str(epoch) + ": ")
 
         # epoch-wise averaged metrics
-        avg_tr_loss = 0
-        avg_tr_acc = 0
-        avg_ev_loss = 0
-        avg_ev_acc = 0
+        avg_metrics = {}
 
         for x, y in train_loader:
             # move to device
             x = x.to(device)
             y = y.to(device)
             y_pred = model(x)
-            loss = loss_fn(y_pred, y)
+
+            loss = config["task_data_arg"]["loss_fn"](y_pred, y)
             
+            if config["task_data_arg"]["loss_fn"] not in avg_metrics:
+                avg_metrics[config["task_data_arg"]["loss_fn"].__name__] = loss.item() * y.shape[0]
+            else:
+                avg_metrics[config["task_data_arg"]["loss_fn"].__name__].append(loss.item() * y.shape[0])
             # backward pass
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-            # calculate other kinds of metrics
-            with torch.no_grad():
-                acc = calculate_shape_IoU_np(y_pred, y)
-                # acc = acc_fn(y_pred, y)
-            
-            avg_tr_loss += loss.item() * y.shape[0]
-            avg_tr_acc += acc.item() * y.shape[0]
+            # calculate and print loss and other kinds of metrics
             print("Epoch: %d" % epoch, end='\t')
             print("loss: %.4f" % loss.item(), end='\t')
-            print("acc: %.4f" % acc.item(), end='\t')
+            with torch.no_grad():
+
+                for metric in config["task_data_arg"]["train_metric_list"]:
+                    acc = metric(y_pred, y)
+                    print(metric.__name__ + ": %.4f" % acc, end='\t')
+                    if metric.__name__ not in avg_metrics:
+                        avg_metrics[metric.__name__] = acc.item() * y.shape[0]
+                    else:
+                        avg_metrics[metric.__name__] += acc.item() * y.shape[0]
+                # acc = acc_fn(y_pred, y)
             print()
 
         # end of an epoch
@@ -124,25 +115,31 @@ def train(config, log):
         # scheduler step
         scheduler.step()
         # val at the end of each epoch
-        avg_tr_acc /= len(train_loader.dataset)
-        avg_tr_loss /= len(train_loader.dataset)
 
         # log all metrics at each epoch
-        log.write("\ttr_loss: " + "%.4f" % avg_tr_loss)
-        log.write("\ttr_acc: " + "%.4f" % avg_tr_acc)
+        for metric in avg_metrics:
+            avg_metrics[metric] /= len(train_dataset)
+            log.write(metric + ": %.4f\t" % avg_metrics[metric])
+        log.write("\n")
 
         # add metrics to global list for displaying
-        tr_loss_l.append(avg_tr_loss)
-        tr_acc_l.append(avg_tr_acc)
-
-        if not len(val_loader.dataset) == 0 or config["validate"]:
-            avg_ev_loss, avg_ev_acc = val(config, log, model, val_loader)
-            log.write("\tev_loss: " + "%.4f" % avg_ev_loss)
-            log.write("\tev_acc: " + "%.4f" % avg_ev_acc)
-            ev_loss_l.append(avg_ev_loss)
-            ev_acc_l.append(avg_ev_acc)
-            if avg_ev_acc >= best_acc:
-                best_acc = avg_ev_acc
+        for metric in avg_metrics:
+            if metric not in tr_global_metrics_l:
+                tr_global_metrics_l[metric] = [avg_metrics[metric]]
+            else:
+                tr_global_metrics_l[metric].append(avg_metrics[metric])
+        # val at the end of each epoch
+        if len(val_loader.dataset) > 0 and config["validate"]:
+            val_avg_metrics = val(config, log, model, val_loader)
+            for metric in val_avg_metrics:
+                if metric not in val_global_metrics_l:
+                    val_global_metrics_l[metric] = [val_avg_metrics[metric]]
+                else:
+                    val_global_metrics_l[metric].append(val_avg_metrics[metric])
+            # save best model
+            _, cand = next(iter(val_avg_metrics.items()))
+            if cand > best_acc:
+                best_acc = cand
                 path = ("experiments\\" + config["exp_name"] + "\\model.t7") if os.name == "nt" else ("experiments/" + config["exp_name"] + "/model.t7")
                 torch.save(model.state_dict(), path)
                 log.write("\tmodel saved. ")
@@ -157,6 +154,9 @@ def train(config, log):
         log.flush()
 
     # end of training
+
+    print(model.module.zeros)
+    # need to deal with plotting!!!
     fig = plt.figure()
     loss_plt = fig.add_subplot(121)
     acc_plt = fig.add_subplot(122)
@@ -186,8 +186,7 @@ def val(config, log, in_model, val_loader):
     model.eval()
 
     # set display and monitor list
-    avg_ev_loss = 0
-    avg_ev_acc = 0
+    avg_metrics = {}
 
     with torch.no_grad():
         for x, y in val_loader:
@@ -197,98 +196,104 @@ def val(config, log, in_model, val_loader):
 
             # forward pass
             y_pred = model(x)
-            loss = loss_fn(y_pred, y)
-            acc = acc_fn(y_pred, y)
-            
-            avg_ev_loss += loss.item() * y.shape[0]
-            avg_ev_acc += acc.item() * y.shape[0]
+            for metric in config["task_data_arg"]["val_metric_list"] + [config["task_data_arg"]["loss_fn"]]:
+                acc = metric(y_pred, y)
+                if metric not in avg_metrics:
+                    avg_metrics[metric] = acc.item() * y.shape[0]
+                else:
+                    avg_metrics[metric] += acc.item() * y.shape[0]
 
-    avg_ev_loss /= len(val_loader.dataset)
-    avg_ev_acc /= len(val_loader.dataset)
+    for key in avg_metrics:
+        avg_metrics[key] /= len(val_loader.dataset)
     # set model back to train
     model.train()
     # return valuation loss and other metrics
-    print("validation: ", avg_ev_loss, avg_ev_acc)
-    return avg_ev_loss, avg_ev_acc
+    print("validation: \t")
+    for key in avg_metrics:
+        print(key.__name__ + ": %.4f" % avg_metrics[key], end='\t')
+        log.write("\t" + key.__name__ + ": %.4f" % avg_metrics[key])
+    print()
+    return avg_metrics
 
-def test(config):
-    device = torch.device("cuda" if (config["cuda"] and torch.cuda.is_available()) else "cpu")
+# def test(config):
+#     device = torch.device("cuda" if (config["cuda"] and torch.cuda.is_available()) else "cpu")
 
-    model = config["model"](**config["arg2model"])
-    if device != torch.device("cpu"):
-        model = nn.DataParallel(model)
-    model_path = "experiments/" + config["exp_name"] + "/model.t7"
-    model.load_state_dict(torch.load(model_path))
+#     model = config["model"](**config["task_data_arg"])
+#     if device != torch.device("cpu"):
+#         model = nn.DataParallel(model)
+#     model_path = "experiments/" + config["exp_name"] + "/model.t7"
+#     model.load_state_dict(torch.load(model_path))
 
-    test_loader = DataLoader(config["task"](partition="test", config=config), batch_size=config["batch_size"], shuffle=False, drop_last=False)
+#     test_loader = DataLoader(config["task"](partition="test", config=config), batch_size=config["batch_size"], shuffle=False, drop_last=False)
 
-    # set model to val
-    model.eval()
+#     # set model to val
+#     model.eval()
 
-    # set display and monitor list
-    avg_ev_loss = 0
-    avg_ev_acc = 0
-    global_confusion_matrix = np.zeros((4, 4))
-    with torch.no_grad():
+#     # set display and monitor list
+#     avg_ev_loss = 0
+#     avg_ev_acc = 0
+#     global_confusion_matrix = np.zeros((4, 4))
+#     with torch.no_grad():
 
-        for x, y in test_loader:
-            # move to device
-            x = x.to(device)
-            y = y.to(device)
+#         for x, y in test_loader:
+#             # move to device
+#             x = x.to(device)
+#             y = y.to(device)
 
-            # forward pass
-            y_pred = model(x)
-            loss = loss_fn(y_pred, y)
-            acc = acc_fn(y_pred, y)
-            avg_ev_loss += loss.item() * y.shape[0]
-            avg_ev_acc += acc.item() * y.shape[0]
+#             # forward pass
+#             y_pred = model(x)
+#             loss = loss_fn(y_pred, y)
+#             acc = acc_fn(y_pred, y)
+#             avg_ev_loss += loss.item() * y.shape[0]
+#             avg_ev_acc += acc.item() * y.shape[0]
 
-            # get confusion matrix
-            confusion_matrix = metrics.confusion_matrix(y.cpu().numpy(), np.argmax(y_pred.cpu().numpy(), axis=1), labels=range(global_confusion_matrix.shape[0]))
-            global_confusion_matrix += confusion_matrix
-    avg_ev_loss /= len(test_loader.dataset)
-    avg_ev_acc /= len(test_loader.dataset)
-    int2label = test_loader.dataset.get_mapping()["int2label"]
-    plot_confusion_matrix(global_confusion_matrix, [int2label[str(i)] for i in range(global_confusion_matrix.shape[0])])
+#             # get confusion matrix
+#             confusion_matrix = metrics.confusion_matrix(y.cpu().numpy(), np.argmax(y_pred.cpu().numpy(), axis=1), labels=range(global_confusion_matrix.shape[0]))
+#             global_confusion_matrix += confusion_matrix
+#     avg_ev_loss /= len(test_loader.dataset)
+#     avg_ev_acc /= len(test_loader.dataset)
+#     int2label = test_loader.dataset.get_mapping()["int2label"]
+#     plot_confusion_matrix(global_confusion_matrix, [int2label[str(i)] for i in range(global_confusion_matrix.shape[0])])
 
-    print("testing: ", avg_ev_loss, avg_ev_acc)
-    return avg_ev_loss, avg_ev_acc
+#     print("testing: ", avg_ev_loss, avg_ev_acc)
+#     return avg_ev_loss, avg_ev_acc
 
 
 ### TODO add displaying for different tasks
 
-def inference(config):
+# def inference(config):
 
-    device = torch.device("cuda" if config["cuda"] else "cpu")
-    model = config["model"](**config["arg2model"])
-    if device != torch.device("cpu"):
-        model = nn.DataParallel(model)
-    model_path = "experiments/" + config["exp_name"] + "/model.t7"
-    model.load_state_dict(torch.load(model_path))
-    model.eval()
-    inf_dataset = config["task"](partition="inf", config=config)
-    inf_loader = DataLoader(inf_dataset, batch_size=1, shuffle=False, drop_last=False)
+#     device = torch.device("cuda" if config["cuda"] else "cpu")
+#     model = config["model"](**config["task_data_arg"])
+#     if device != torch.device("cpu"):
+#         model = nn.DataParallel(model)
+#     model_path = "experiments/" + config["exp_name"] + "/model.t7"
+#     model.load_state_dict(torch.load(model_path))
+#     model.eval()
+#     inf_dataset = config["task"](partition="inf", config=config)
+#     inf_loader = DataLoader(inf_dataset, batch_size=1, shuffle=False, drop_last=False)
 
 
-    f = open("experiments/" + config["exp_name"] + "/test_result.csv", 'w')
+#     f = open("experiments/" + config["exp_name"] + "/test_result.csv", 'w')
 
-    dictionary = inf_dataset.get_mapping()
-    # raise Exception("break")
-    # construct 
-    with torch.no_grad():
-        for x in inf_loader:
-            x = x.to(device)
-            y_pred = model(x)
-            print(F.softmax(y_pred, dim=1))
-            y_pred = torch.argmax(y_pred, dim=1)
-            print(dictionary['int2label'])
-            print("prediction", dictionary['int2label'][str(y_pred.item())])
+#     dictionary = inf_dataset.get_mapping()
+#     # raise Exception("break")
+#     # construct 
+#     with torch.no_grad():
+#         for x in inf_loader:
+#             x = x.to(device)
+#             y_pred = model(x)
+#             print(F.softmax(y_pred, dim=1))
+#             y_pred = torch.argmax(y_pred, dim=1)
+#             print(dictionary['int2label'])
+#             print("prediction", dictionary['int2label'][str(y_pred.item())])
             
 
-    f.close()
+#     f.close()
 
 if __name__ == "__main__":
 
+    # read config.yml as a dictionary
     print("Reading configurations from config.yml...")
     with open("config.yml", 'r') as f:
         config = yaml.safe_load(f)
@@ -306,12 +311,10 @@ if __name__ == "__main__":
     parser.add_argument("--validate", type=bool, default=None)
     parser.add_argument("--do_split", type=bool, default=None)
     parser.add_argument("--train_val_test_ratio", type=list, default=None)
-    parser.add_argument("--dataset", type=str, default=None)
     parser.add_argument("-f", "--force", type=str, default=None)
     parser.add_argument("--continue", type=bool, default=None)
-    parser.add_argument("--task", type=str, default=None)
+    parser.add_argument("--data", type=str, default=None)
     parser.add_argument("--model", type=str, default=None)
-    parser.add_argument("--datapath", type=str, default=None)
     parser.add_argument("--dataroot", type=str, default=None)
     args = parser.parse_args()
     
@@ -320,27 +323,32 @@ if __name__ == "__main__":
         if (arg_name[0] == '_' or not getattr(args, arg_name)):
             continue
         config[arg_name] = getattr(args, arg_name)
-    # arguments that might require evaluation
-    req_eval = ["lr", "weight_decay", "model", "task"]
-    for arg_name in req_eval:
-        if type(arg_name) is not str:
+    # arguments that might require first level evaluation
+    req_eval_1 = ["lr", "weight_decay", "model", "data"]
+    for arg_name in req_eval_1:
+        # if config[arg_name] is not read in as a string, continue
+        if type(config[arg_name]) is not str:
             continue
         config[arg_name] = eval(config[arg_name])
+
+    # arguments that might require second level evaluation
+    # req_eval_2 = ["metric_list"]
+    # for arg_name in req_eval_2:
+    #     new_list = []
+    #     for item in config[arg_name]:
+    #         if type(item) is str:
+    #             new_list.append(eval(item))
+    #         else:
+    #             new_list.append(item)
+    #     config[arg_name] = new_list
     # generate default exp_name for lazy users
     if not config["exp_name"] or config["exp_name"] == "default":
-        config["exp_name"] = config["model"].__name__ + "_" + config["dataset"] + "_" + str(datetime.date.today())
-    print(config["exp_name"])
-
+        config["exp_name"] = config["model"].__name__ + "_" + config["data"].__name__ + "_" + str(datetime.date.today())
+    print("Experiment name: ", config["exp_name"])
     # generate arguments to model
-    config["arg2model"] = dict([m for m in inspect.getmembers(config['task']) if not (inspect.isfunction(m[1]) or inspect.ismethod(m[1]) or m[0].startswith('_'))])
-    # raise Exception("break")
-    # try to split train val test
-    # if config["do_split"]:
-    #     if config["exp_type"] != "train":
-    #         user = input("Your experiment type is: " + config["exp_type"] + ". Are you sure you want to do split? (y/n)")
-    #         if user not in ["Y", "y"]:
-    #             raise Exception("Canceled")
-    #     split_train_val_test_csv(data_folder=os.path.join("/data", config["dataset"]), train_ratio=config["train_val_test_ratio"][0], val_ratio=config["train_val_test_ratio"][1], test_ratio=config["train_val_test_ratio"][2])
+
+    # (inspect.isfunction(m[1]) or 
+    config["task_data_arg"] = dict([m for m in inspect.getmembers(config['data']) if not (inspect.ismethod(m[1]) or m[0].startswith('_'))])     # risky, but let's keep it this way for now
     if config["exp_type"] == "train":
         # make output directories
 
