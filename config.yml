@@ -1,7 +1,7 @@
 #### general
 data:
   # VOC2012, AutoRegress
-  VOC2012
+  AutoRegress
 exp_type:
   train
 do_split:
@@ -9,7 +9,7 @@ do_split:
   False
 model:
   # smooth_histogram, FCN
-  FCN
+  smooth_histogram
 dataroot:
   /data
 
@@ -23,7 +23,7 @@ train_val_test_ratio:
 exp_name:
   # name of the experiment
 epochs:
-  2
+  100
 force:
   True
 
@@ -36,7 +36,7 @@ momentum:
 weight_decay:
   1e-4
 batch_size:
-  2
+  1
 validate:
   # if True, do validation at the end of each epoch
   True

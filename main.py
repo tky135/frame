@@ -73,7 +73,7 @@ def train(config, log):
     for metric in config["task_data_arg"]["val_metric_list"] + [config["task_data_arg"]["loss_fn"]]:
         all_metrics["val"][metric.__name__] = []
     # set best model
-    best_acc = -1e10
+    best_acc = None
     
     for epoch in range(config["epochs"]):
         # new epoch
@@ -100,8 +100,8 @@ def train(config, log):
             optimizer.step()
 
             # calculate and print loss and other kinds of metrics
-            print("Epoch: %d" % epoch, end='\t')
-            print("loss: %.4f" % loss.item(), end='\t')
+            # print("Epoch: %d" % epoch, end='\t')
+            # print("loss: %.4f" % loss.item(), end='\t')
             with torch.no_grad():
 
                 for metric in config["task_data_arg"]["train_metric_list"]:
@@ -109,7 +109,7 @@ def train(config, log):
                     print(metric.__name__ + ": %.4f" % acc, end='\t')
                     all_metrics["train"][metric.__name__][-1] += acc.item() * b
                 # acc = acc_fn(y_pred, y)
-            print()
+            # print()
         # end of an epoch
 
         # scheduler step
@@ -126,9 +126,22 @@ def train(config, log):
             val_avg_metrics = val(config, log, model, val_loader)
             for metric in val_avg_metrics:
                 all_metrics["val"][metric].append(val_avg_metrics[metric])
+            
             # save best model based on the first val metric
-            _, cand = next(iter(val_avg_metrics.items()))
-            if cand > best_acc:
+            if "save_metric_name" not in config:
+                config["save_metric_name"], cand = next(iter(val_avg_metrics.items()))
+            else:
+                cand = val_avg_metrics[config["save_metric_name"]]
+            
+            if epoch == 1:
+                # try to determine the sign for the metric at second epoch
+                if all_metrics["val"][config["save_metric_name"]][1] > all_metrics["val"][config["save_metric_name"]][0]:
+                    config["save_metric_sign"] = 1
+                else:
+                    config["save_metric_sign"] = -1
+    
+            if epoch == 0 or cand * config["save_metric_sign"] > best_acc * config["save_metric_sign"]:
+                # always save at first 2 epochs
                 best_acc = cand
                 path = ("experiments\\" + config["exp_name"] + "\\model.t7") if os.name == "nt" else ("experiments/" + config["exp_name"] + "/model.t7")
                 torch.save(model.state_dict(), path)
