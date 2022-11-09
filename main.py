@@ -87,12 +87,13 @@ def train(config, log):
         for x_y in train_loader:
             # move to device
             x_y = [x_y[i].to(device) for i in range(len(x_y))]
-
+            x = x_y[0]
+            y = x_y[1:]
+            b = x.shape[0]
             y_pred = model(x_y[0])
+            loss = config["task_data_arg"]["loss_fn"](y_pred, *y)
 
-            loss = config["task_data_arg"]["loss_fn"](y_pred, *(x_y[1:]))
-
-            all_metrics["train"][config["task_data_arg"]["loss_fn"].__name__][-1] += loss.item() * y.shape[0]
+            all_metrics["train"][config["task_data_arg"]["loss_fn"].__name__][-1] += loss.item() * b
             # backward pass
             optimizer.zero_grad()
             loss.backward()
@@ -104,9 +105,9 @@ def train(config, log):
             with torch.no_grad():
 
                 for metric in config["task_data_arg"]["train_metric_list"]:
-                    acc = metric(y_pred, y)
+                    acc = metric(y_pred, *y)
                     print(metric.__name__ + ": %.4f" % acc, end='\t')
-                    all_metrics["train"][metric.__name__][-1] += acc.item() * y.shape[0]
+                    all_metrics["train"][metric.__name__][-1] += acc.item() * b
                 # acc = acc_fn(y_pred, y)
             print()
         # end of an epoch
@@ -169,6 +170,7 @@ def train(config, log):
             ax.plot(x, metric_plot[metric][phase], label=phase)
         ax.legend()
     path = "experiments\\" + config["exp_name"] + "\\train.png" if os.name == "nt" else "experiments/" + config["exp_name"] + "/train.png"
+    plt.tight_layout()
     plt.savefig(path)
     plt.show()
 
@@ -189,19 +191,21 @@ def val(config, log, in_model, val_loader):
     avg_metrics = {}
 
     with torch.no_grad():
-        for x, y in val_loader:
+        for x_y in val_loader:
             # move to device
-            x = x.to(device)
-            y = y.to(device)
+            x_y = [x.to(device) for x in x_y]
+            x = x_y[0]
+            y = x_y[1:]
+            b = x.shape[0]
 
             # forward pass
             y_pred = model(x)
             for metric in config["task_data_arg"]["val_metric_list"] + [config["task_data_arg"]["loss_fn"]]:
-                acc = metric(y_pred, y)
+                acc = metric(y_pred, *y)
                 if metric.__name__ not in avg_metrics:
-                    avg_metrics[metric.__name__] = acc.item() * y.shape[0]
+                    avg_metrics[metric.__name__] = acc.item() * b
                 else:
-                    avg_metrics[metric.__name__] += acc.item() * y.shape[0]
+                    avg_metrics[metric.__name__] += acc.item() * b
 
     for key in avg_metrics:
         avg_metrics[key] /= len(val_loader.dataset)
