@@ -1,14 +1,15 @@
 #### general
 data:
-  # PCCls, ImgCls, ImgSeg
-  AutoRegress
+  # VOC2012, AutoRegress
+  VOC2012
 exp_type:
   train
 do_split:
   # if True, discard previous train val test split(if any) and split 
   False
 model:
-  smooth_histogram
+  # smooth_histogram, FCN
+  FCN
 dataroot:
   /data
 
@@ -22,7 +23,7 @@ train_val_test_ratio:
 exp_name:
   # name of the experiment
 epochs:
-  75
+  10
 force:
   True
 
@@ -35,7 +36,7 @@ momentum:
 weight_decay:
   1e-4
 batch_size:
-  32
+  2
 validate:
   # if True, do validation at the end of each epoch
   True

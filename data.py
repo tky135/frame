@@ -47,6 +47,7 @@ class csvDataset(Dataset):
             self.x = None
             self.y = None
         else:
+            # if do_split is set to True, or no valid csv file, split the dataset
             if config["do_split"] == True or not os.path.exists(os.path.join(self.path, partition + ".csv")):
                 print(os.path.join(self.path, partition + ".csv") + " does not exist, do split?(May overwrite other existing csv)(y/n)", file=sys.stderr)
                 user = input()
@@ -55,8 +56,10 @@ class csvDataset(Dataset):
                     raise Exception("Canceled")
                 self._split_train_val_test_csv()
                 config["do_split"] = False  # only do_split once in one experiment
+            # read csv file into a dataframe
             df = pd.read_csv(os.path.join(self.path, partition + ".csv"))
 
+            # get self.x and self.y
             self.x = df["x"].values
             self.y = df["y"].values
 
@@ -89,9 +92,6 @@ class csvDataset(Dataset):
         all_df.iloc[int((train_ratio + val_ratio) * length): , :].to_csv(os.path.join(self.path, "test.csv"), index=False)
     
     def _generate_all_csv(self):
-        """
-        This should be written by user
-        """
         allcsv = open(os.path.join(self.path, "all.csv"), "w")
         allcsv.write("x,y\n")
         x_list, y_list = self.get_all_xy_and_preprocess()
@@ -120,6 +120,7 @@ class AutoRegress(csvDataset):
     def __init__(self, partition, config) -> None:
         super().__init__(partition, config)
     def get_all_xy_and_preprocess(self):
+        # will only be called once when generating all.csv
         count = 5000
         rand = np.random.RandomState(0)
         samples = 0.4 + 0.1 * rand.randn(count)

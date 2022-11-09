@@ -65,31 +65,34 @@ def train(config, log):
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.1 ** (1 / config["epochs"]))
 
     # set display and monitor list
-    tr_global_metrics_l = {}
-    val_global_metrics_l = {}
+    all_metrics = {"train": {}, "val": {}}
 
+    # initialize all_metrics
+    for metric in config["task_data_arg"]["train_metric_list"] + [config["task_data_arg"]["loss_fn"]]:
+        all_metrics["train"][metric.__name__] = []
+    for metric in config["task_data_arg"]["val_metric_list"] + [config["task_data_arg"]["loss_fn"]]:
+        all_metrics["val"][metric.__name__] = []
     # set best model
     best_acc = -1e10
     
     for epoch in range(config["epochs"]):
         # new epoch
         log.write("Epoch " + str(epoch) + ": ")
-
+        for metric in all_metrics["train"]:
+            all_metrics["train"][metric].append(0)
         # epoch-wise averaged metrics
-        avg_metrics = {}
+        # avg_metrics = {}
 
-        for x, y in train_loader:
+        # must support when unpacked values != 2
+        for x_y in train_loader:
             # move to device
-            x = x.to(device)
-            y = y.to(device)
-            y_pred = model(x)
+            x_y = [x_y[i].to(device) for i in range(len(x_y))]
 
-            loss = config["task_data_arg"]["loss_fn"](y_pred, y)
-            
-            if config["task_data_arg"]["loss_fn"] not in avg_metrics:
-                avg_metrics[config["task_data_arg"]["loss_fn"].__name__] = loss.item() * y.shape[0]
-            else:
-                avg_metrics[config["task_data_arg"]["loss_fn"].__name__].append(loss.item() * y.shape[0])
+            y_pred = model(x_y[0])
+
+            loss = config["task_data_arg"]["loss_fn"](y_pred, *(x_y[1:]))
+
+            all_metrics["train"][config["task_data_arg"]["loss_fn"].__name__][-1] += loss.item() * y.shape[0]
             # backward pass
             optimizer.zero_grad()
             loss.backward()
@@ -103,13 +106,9 @@ def train(config, log):
                 for metric in config["task_data_arg"]["train_metric_list"]:
                     acc = metric(y_pred, y)
                     print(metric.__name__ + ": %.4f" % acc, end='\t')
-                    if metric.__name__ not in avg_metrics:
-                        avg_metrics[metric.__name__] = acc.item() * y.shape[0]
-                    else:
-                        avg_metrics[metric.__name__] += acc.item() * y.shape[0]
+                    all_metrics["train"][metric.__name__][-1] += acc.item() * y.shape[0]
                 # acc = acc_fn(y_pred, y)
             print()
-
         # end of an epoch
 
         # scheduler step
@@ -117,26 +116,16 @@ def train(config, log):
         # val at the end of each epoch
 
         # log all metrics at each epoch
-        for metric in avg_metrics:
-            avg_metrics[metric] /= len(train_dataset)
-            log.write(metric + ": %.4f\t" % avg_metrics[metric])
+        for metric in all_metrics["train"]:
+            all_metrics["train"][metric][-1] /= len(train_dataset)
+            log.write(metric + ": %.4f\t" % all_metrics["train"][metric][-1])
         log.write("\n")
-
-        # add metrics to global list for displaying
-        for metric in avg_metrics:
-            if metric not in tr_global_metrics_l:
-                tr_global_metrics_l[metric] = [avg_metrics[metric]]
-            else:
-                tr_global_metrics_l[metric].append(avg_metrics[metric])
         # val at the end of each epoch
         if len(val_loader.dataset) > 0 and config["validate"]:
             val_avg_metrics = val(config, log, model, val_loader)
             for metric in val_avg_metrics:
-                if metric not in val_global_metrics_l:
-                    val_global_metrics_l[metric] = [val_avg_metrics[metric]]
-                else:
-                    val_global_metrics_l[metric].append(val_avg_metrics[metric])
-            # save best model
+                all_metrics["val"][metric].append(val_avg_metrics[metric])
+            # save best model based on the first val metric
             _, cand = next(iter(val_avg_metrics.items()))
             if cand > best_acc:
                 best_acc = cand
@@ -145,6 +134,7 @@ def train(config, log):
                 log.write("\tmodel saved. ")
             
         else:
+            # if no validation, save model at the end of each epoch
             path = ("experiments\\" + config["exp_name"] + "\\model.t7") if os.name == "nt" else ("experiments/" + config["exp_name"] + "/model.t7")
             torch.save(model.state_dict(), path)
             log.write("model saved. ")
@@ -155,20 +145,29 @@ def train(config, log):
 
     # end of training
 
-    print(model.module.zeros)
-    # need to deal with plotting!!!
     fig = plt.figure()
-    loss_plt = fig.add_subplot(121)
-    acc_plt = fig.add_subplot(122)
+    # combine train & val metrics into a single plot
+    metric_plot = {}
+    for metric in set(all_metrics["train"].keys()).union(set(all_metrics["val"].keys())):
+        metric_plot[metric] = {}
+        if metric in all_metrics["train"]:
+            metric_plot[metric]["train"] = all_metrics["train"][metric]
+        if metric in all_metrics["val"]:
+            metric_plot[metric]["val"] = all_metrics["val"][metric]
+    
+    print(metric_plot.keys())
+    # subplot
     x = np.arange(config["epochs"])
-    loss_plt.plot(x, tr_loss_l, 'r', label="train")
-    loss_plt.plot(x, ev_loss_l, 'b', label="val")
-    loss_plt.title.set_text("Loss wrt Epoch")
-    loss_plt.legend()
-    acc_plt.plot(x, tr_acc_l, 'r', label="train")
-    acc_plt.plot(x, ev_acc_l, 'b', label="val")
-    acc_plt.title.set_text("Accuracy wrt Epoch")
-    acc_plt.legend()
+    n_rows = int(np.ceil(np.sqrt(len(metric_plot))))
+    n_cols = int(np.ceil(len(metric_plot) / n_rows))
+    count = 1
+    for metric in metric_plot:
+        ax = fig.add_subplot(n_rows, n_cols, count)
+        count += 1
+        ax.set_title(metric)
+        for phase in metric_plot[metric]:
+            ax.plot(x, metric_plot[metric][phase], label=phase)
+        ax.legend()
     path = "experiments\\" + config["exp_name"] + "\\train.png" if os.name == "nt" else "experiments/" + config["exp_name"] + "/train.png"
     plt.savefig(path)
     plt.show()
@@ -177,6 +176,7 @@ def train(config, log):
 
 
 def val(config, log, in_model, val_loader):
+    # returns a dictionary of val metrics
     device = torch.device("cuda" if (config["cuda"] and torch.cuda.is_available()) else "cpu")
     model = in_model
         # set val dataloader
@@ -198,10 +198,10 @@ def val(config, log, in_model, val_loader):
             y_pred = model(x)
             for metric in config["task_data_arg"]["val_metric_list"] + [config["task_data_arg"]["loss_fn"]]:
                 acc = metric(y_pred, y)
-                if metric not in avg_metrics:
-                    avg_metrics[metric] = acc.item() * y.shape[0]
+                if metric.__name__ not in avg_metrics:
+                    avg_metrics[metric.__name__] = acc.item() * y.shape[0]
                 else:
-                    avg_metrics[metric] += acc.item() * y.shape[0]
+                    avg_metrics[metric.__name__] += acc.item() * y.shape[0]
 
     for key in avg_metrics:
         avg_metrics[key] /= len(val_loader.dataset)
@@ -210,8 +210,8 @@ def val(config, log, in_model, val_loader):
     # return valuation loss and other metrics
     print("validation: \t")
     for key in avg_metrics:
-        print(key.__name__ + ": %.4f" % avg_metrics[key], end='\t')
-        log.write("\t" + key.__name__ + ": %.4f" % avg_metrics[key])
+        print(key + ": %.4f" % avg_metrics[key], end='\t')
+        log.write("\t" + key + ": %.4f" % avg_metrics[key])
     print()
     return avg_metrics
 
