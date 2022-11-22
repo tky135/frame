@@ -117,6 +117,7 @@ class AutoRegress(csvDataset):
     val_metric_list = []
     loss_fn = neg_log_likelihood
     n_inputs = 1
+    n_values = 20
     def __init__(self, partition, config) -> None:
         super().__init__(partition, config)
     def get_all_xy_and_preprocess(self):
@@ -133,7 +134,6 @@ class AutoRegress(csvDataset):
         # The inputs to this function is exactly the the outputs of get_all_xy_and_preprocess at certain index
         # output is exactly what is given to model at certain index
         return torch.tensor(x)
-        
 class ImgCls(csvDataset):
     def __init__(self, partition, config) -> None:
         super().__init__(partition, config)

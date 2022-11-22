@@ -1,7 +1,7 @@
 #### general
 data:
   # VOC2012, AutoRegress
-  lung
+  AutoRegress
 exp_type:
   train
 do_split:
@@ -9,7 +9,7 @@ do_split:
   False
 model:
   # smooth_histogram, FCN
-  ResNet18
+  smooth_histogram
 dataroot:
   /data
 
@@ -30,11 +30,11 @@ force:
 #### train
 
 lr:
-  0.01
+  0.1
 momentum:
-  0.9
+  0
 weight_decay:
-  1e-4
+  0
 batch_size:
   32
 validate:
