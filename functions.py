@@ -39,6 +39,7 @@ def class_acc(y_pred: torch.Tensor, y: torch.Tensor):
 
     """
     z = torch.sum((torch.max(y_pred, dim=1)[1] == y)) / y.flatten().shape[0]
+
     return z
 
 # def seg_acc(y_pred, y):
@@ -47,9 +48,8 @@ def class_acc(y_pred: torch.Tensor, y: torch.Tensor):
 #     mse = torch.nn.MSELoss()
 #     return -torch.sqrt(mse(torch.log(y_pred.reshape(-1)), torch.log(y)))
 
-def neg_log_likelihood(y_pred, y):
-    assert (y_pred.shape == y.shape)
-    return torch.mean(-y * torch.log(y_pred))
+def neg_log_likelihood(y_pred):
+    return -torch.mean(torch.log(y_pred))
 
 # TODO 
 def calculate_shape_IoU_np(y_pred, y):

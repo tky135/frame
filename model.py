@@ -46,7 +46,7 @@ class simpleLinear(nn.Module):
 
 class ResNet18(nn.Module):
     "11,181,642 parameters"
-    def __init__(self, input_channels=3, n_category=10, pretrained=True):
+    def __init__(self, input_channels=3, n_category=10, pretrained=True, **kwargs):
         # input_dimension doesn't matter
         super().__init__()
         self.net = models.resnet18(pretrained=pretrained)
@@ -81,7 +81,7 @@ class VGG(nn.Module):
         return y
 class GoogLeNet(nn.Module):
     "5,610,154 parameters"
-    def __init__(self, input_channels=3, n_category=10, pretrained=True):
+    def __init__(self, input_channels=3, n_category=10, pretrained=True, **kwargs):
         super().__init__()
         self.net = models.googlenet(pretrained=pretrained)
         print(self.net)

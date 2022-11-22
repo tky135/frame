@@ -25,23 +25,25 @@ class csvDataset(Dataset):
     def __init__(self, partition, config) -> None:
         super().__init__()
 
-        # initialize (ok)
         self.partition = partition
         self.config = config
+
+        # get self.path
         if "data_path" in config["task_data_arg"] and config["task_data_arg"]["data_path"] is not None and os.path.isdir(config["task_data_arg"]["data_path"]):
             self.path = config["task_data_arg"]["data_path"]
         else:
             self.path = os.path.join(config["dataroot"], config["data"].__name__)
             if not os.path.isdir(self.path):
+                warnings.warn("data path %s not found, creating a new one. " % "self.path")
                 os.makedirs(self.path)
+        
+        # loading self.dict_store if exists
         self.dict_store = os.path.join(self.path, "dict_store.json")
         self.dict = {}
-
-        # loading and dumping dict_store (ok)
-        # user can manually provide a dictionary file
         if os.path.exists(self.dict_store):
             self.dict = json.load(open(self.dict_store))
 
+        # get self.x (and self.y)
         ### TODO single out inf ??? 
         if partition == "inf":
             self.x = None
@@ -58,29 +60,27 @@ class csvDataset(Dataset):
                 config["do_split"] = False  # only do_split once in one experiment
             # read csv file into a dataframe
             df = pd.read_csv(os.path.join(self.path, partition + ".csv"))
-
-            # get self.x and self.y
-            self.x = df["x"].values
-            self.y = df["y"].values
+            self.xs = df.values
 
         # store dictionary to dict_store
         # if not os.path.exists(self.dict_store):
-        json.dump(self.dict, open(self.dict_store, "w"))
+        json.dump(self.dict, open(self.dict_store, "w"))    # user can store information using self.dict
     def __getitem__(self, index):
         # not considering partition for now
-        return self.read_xy(self.x[index], self.y[index])
+        return self.read_xy(*self.xs[index])
         # when testing or inferencing, now sure what to do
 
 
     def __len__(self):
-        return len(self.y)
+        return self.xs.shape[0]
     def _split_train_val_test_csv(self) -> None:
         """
         This should be a function of class dataset
         """
         train_ratio, val_ratio, test_ratio = self.config["train_val_test_ratio"]
         if train_ratio + val_ratio + test_ratio != 1:
-            raise Exception("train ratio + val ratio + test ratio should be 1")
+            # raise Exception("train ratio + val ratio + test ratio should be 1")
+            pass
         self._generate_all_csv()
 
         all_df = pd.read_csv(os.path.join(self.path, "all.csv"))
@@ -93,11 +93,11 @@ class csvDataset(Dataset):
     
     def _generate_all_csv(self):
         allcsv = open(os.path.join(self.path, "all.csv"), "w")
-        allcsv.write("x,y\n")
-        x_list, y_list = self.get_all_xy_and_preprocess()
-        for x, y in zip(x_list, y_list):
-            allcsv.write(str(x) + "," + str(y) + "\n")
-
+        xs_list = self.get_all_xy_and_preprocess() # a tuple of iterables
+        xs_list_np = np.array(xs_list).T
+        df = pd.DataFrame(xs_list_np)
+        df.to_csv(allcsv, index=False)
+        allcsv.close()
     def get_all_xy_and_preprocess(self):
         ### MUST IMPLEMENT
         raise Exception("Not Implemented")
@@ -116,18 +116,23 @@ class AutoRegress(csvDataset):
     train_metric_list = []
     val_metric_list = []
     loss_fn = neg_log_likelihood
-    n_values = 20
+    n_inputs = 1
     def __init__(self, partition, config) -> None:
         super().__init__(partition, config)
     def get_all_xy_and_preprocess(self):
-        # will only be called once when generating all.csv
+        # Find all inputs and outputs
+        # return a tuple of lists, each list being an input/output
+        # what's inside each list is user defined, but the object  should be small. (path to actual object)
         count = 5000
         rand = np.random.RandomState(0)
         samples = 0.4 + 0.1 * rand.randn(count)
         data = np.digitize(samples, np.linspace(0.0, 1.0, 20))
-        return data, np.ones_like(data)
-    def read_xy(self, x, y):
-        return torch.tensor(x), torch.tensor(y)
+        return list(data)
+    def read_xy(self, x):
+        # How to read the actual input and output from the lists
+        # The inputs to this function is exactly the the outputs of get_all_xy_and_preprocess at certain index
+        # output is exactly what is given to model at certain index
+        return torch.tensor(x)
         
 class ImgCls(csvDataset):
     def __init__(self, partition, config) -> None:
@@ -343,6 +348,15 @@ class HuBMAP_HPA(csvDataset):
         plt.imshow(my_img)
         plt.show()
 
+class lung(ImgCls):
+    # data_path = "/data/lung_orig"
+    train_metric_list = [class_acc]
+    val_metric_list = [class_acc]
+    loss_fn = CEloss
+    n_category = 4
+    n_inputs = 1
+    def __init__(self, partition, config) -> None:
+        super().__init__(partition, config)
 ### Level 2: dataset
 class VOC2012(ImgSeg):
     data_path = None

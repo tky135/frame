@@ -85,14 +85,20 @@ def train(config, log):
 
         # must support when unpacked values != 2
         for x_y in train_loader:
-            # move to device
-            x_y = [x_y[i].to(device) for i in range(len(x_y))]
-            x = x_y[0]
-            y = x_y[1:]
-            b = x.shape[0]
-            y_pred = model(x_y[0])
-            loss = config["task_data_arg"]["loss_fn"](y_pred, *y)
-
+            # if x_y is tensor
+            if isinstance(x_y, torch.Tensor):
+                xx = [x_y.to(device)]
+                yy = []
+            else:
+                xx = [x_y[i].to(device) for i in range(config["task_data_arg"]["n_inputs"])]
+                yy = [x_y[i].to(device) for i in range(config["task_data_arg"]["n_inputs"], len(x_y))]
+            b = xx[0].shape[0]
+            y_pred = model(*xx)
+            # if isinstance(y_pred, torch.Tensor):
+            #     loss = config["task_data_arg"]["loss_fn"](y_pred, *yy)
+            # else:
+            #     loss = config["task_data_arg"]["loss_fn"](*y_pred, *yy)
+            loss = config["task_data_arg"]["loss_fn"](y_pred, *yy) if isinstance(y_pred, torch.Tensor) else config["task_data_arg"]["loss_fn"](*y_pred, *yy)
             all_metrics["train"][config["task_data_arg"]["loss_fn"].__name__][-1] += loss.item() * b
             # backward pass
             optimizer.zero_grad()
@@ -100,16 +106,17 @@ def train(config, log):
             optimizer.step()
 
             # calculate and print loss and other kinds of metrics
-            # print("Epoch: %d" % epoch, end='\t')
-            # print("loss: %.4f" % loss.item(), end='\t')
+            print("Epoch: %d" % epoch, end='\t')
+            print("loss: %.4f" % loss.item(), end='\t')
             with torch.no_grad():
 
                 for metric in config["task_data_arg"]["train_metric_list"]:
-                    acc = metric(y_pred, *y)
+
+                    acc = metric(y_pred, *yy) if isinstance(y_pred, torch.Tensor) else metric(*y_pred, *yy)
                     print(metric.__name__ + ": %.4f" % acc, end='\t')
                     all_metrics["train"][metric.__name__][-1] += acc.item() * b
                 # acc = acc_fn(y_pred, y)
-            # print()
+            print()
         # end of an epoch
 
         # scheduler step
@@ -202,19 +209,26 @@ def val(config, log, in_model, val_loader):
 
     # set display and monitor list
     avg_metrics = {}
-
     with torch.no_grad():
         for x_y in val_loader:
             # move to device
-            x_y = [x.to(device) for x in x_y]
-            x = x_y[0]
-            y = x_y[1:]
-            b = x.shape[0]
+            if isinstance(x_y, torch.Tensor):
+                xx = [x_y.to(device)]
+                yy = []
+            else:
+                xx = [x_y[i].to(device) for i in range(config["task_data_arg"]["n_inputs"])]
+                yy = [x_y[i].to(device) for i in range(config["task_data_arg"]["n_inputs"], len(x_y))]
+            b = xx[0].shape[0]
 
             # forward pass
-            y_pred = model(x)
-            for metric in config["task_data_arg"]["val_metric_list"] + [config["task_data_arg"]["loss_fn"]]:
-                acc = metric(y_pred, *y)
+            y_pred = model(*xx)
+            for metric in [config["task_data_arg"]["loss_fn"]] + config["task_data_arg"]["val_metric_list"]:
+                # if isinstance(y_pred, torch.Tensor):
+                #     acc = metric(y_pred, *yy)
+                # else:
+                #     # assuming y_pred is either a tensor or a tuple(list)
+                #     acc = metric(*y_pred, *yy)
+                acc = metric(y_pred, *yy) if isinstance(y_pred, torch.Tensor) else metric(*y_pred, *yy)
                 if metric.__name__ not in avg_metrics:
                     avg_metrics[metric.__name__] = acc.item() * b
                 else:
@@ -225,7 +239,7 @@ def val(config, log, in_model, val_loader):
     # set model back to train
     model.train()
     # return valuation loss and other metrics
-    print("validation: \t")
+    print("validation: ", end="\t")
     for key in avg_metrics:
         print(key + ": %.4f" % avg_metrics[key], end='\t')
         log.write("\t" + key + ": %.4f" % avg_metrics[key])

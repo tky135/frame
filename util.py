@@ -143,7 +143,10 @@ def plot_confusion_matrix(confusion_matrix, labels):
 
 # TODO improve speed
 def read_img(path: str) -> torch.Tensor:
-    return torchvision.io.read_image(path).squeeze()
+    return torchvision.io.read_image(path).squeeze() /  255
+
+
+# TODO rewrite
 def write_img(img: Union[np.ndarray, torch.Tensor], path: str) -> None:
     if issubclass(type(img), torch.Tensor):
         img = img.numpy()
@@ -158,7 +161,7 @@ def write_img(img: Union[np.ndarray, torch.Tensor], path: str) -> None:
 
 
         if img.dtype in [np.float32, np.float16, np.float64]:
-            img = (img / 255).astype(np.uint8)
+            img = (img / 255).astype(np.uint8)# ???
     else:
         print("type %s not supported", type(img))
     img = Image.fromarray(img).save(path)

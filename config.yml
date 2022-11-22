@@ -1,7 +1,7 @@
 #### general
 data:
   # VOC2012, AutoRegress
-  AutoRegress
+  lung
 exp_type:
   train
 do_split:
@@ -9,7 +9,7 @@ do_split:
   False
 model:
   # smooth_histogram, FCN
-  smooth_histogram
+  ResNet18
 dataroot:
   /data
 
@@ -17,7 +17,7 @@ cuda:
   # if True, try to use GPU, else use CPU
   True
 train_val_test_ratio:
-  [0.8, 0.1, 0.1]
+  [0.8, 0.2, 0.0]
   # [0, 0, 1]
 
 exp_name:
@@ -30,13 +30,13 @@ force:
 #### train
 
 lr:
-  0.001
+  0.01
 momentum:
   0.9
 weight_decay:
   1e-4
 batch_size:
-  1
+  32
 validate:
   # if True, do validation at the end of each epoch
   True
