@@ -165,7 +165,8 @@ def train(config, log):
         log.flush()
 
     # end of training
-
+    model = model.cpu()
+    model.module.display(100, train_loader)
     fig = plt.figure()
     # combine train & val metrics into a single plot
     metric_plot = {}

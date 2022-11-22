@@ -117,17 +117,29 @@ class AutoRegress(csvDataset):
     val_metric_list = []
     loss_fn = neg_log_likelihood
     n_inputs = 1
-    n_values = 20
+    n_values = 100
     def __init__(self, partition, config) -> None:
         super().__init__(partition, config)
     def get_all_xy_and_preprocess(self):
         # Find all inputs and outputs
         # return a tuple of lists, each list being an input/output
         # what's inside each list is user defined, but the object  should be small. (path to actual object)
-        count = 5000
+
+
+        # count = 5000
+        # rand = np.random.RandomState(0)
+        # samples = 0.4 + 0.1 * rand.randn(count)
+        # data = np.digitize(samples, np.linspace(0.0, 1.0, 20))
+
+        count = 10000
         rand = np.random.RandomState(0)
-        samples = 0.4 + 0.1 * rand.randn(count)
-        data = np.digitize(samples, np.linspace(0.0, 1.0, 20))
+        a = 0.3 + 0.1 * rand.randn(count)
+        b = 0.8 + 0.05 * rand.randn(count)
+        mask = rand.rand(count) < 0.5
+        samples = np.clip(a * mask + b * (1 - mask), 0.0, 1.0)
+        data = np.digitize(samples, np.linspace(0.0, 1.0, 100))
+        plt.hist()
+
         return list(data)
     def read_xy(self, x):
         # How to read the actual input and output from the lists

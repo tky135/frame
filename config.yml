@@ -8,7 +8,7 @@ do_split:
   # if True, discard previous train val test split(if any) and split 
   False
 model:
-  # smooth_histogram, FCN
+  # smooth_histogram, FCN, mixture_logistics
   smooth_histogram
 dataroot:
   /data
