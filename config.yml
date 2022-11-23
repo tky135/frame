@@ -30,7 +30,7 @@ force:
 #### train
 
 lr:
-  0.1
+  1e-3
 momentum:
   0
 weight_decay:

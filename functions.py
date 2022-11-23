@@ -49,7 +49,7 @@ def class_acc(y_pred: torch.Tensor, y: torch.Tensor):
 #     return -torch.sqrt(mse(torch.log(y_pred.reshape(-1)), torch.log(y)))
 
 def neg_log_likelihood(y_pred):
-    return -torch.mean(torch.log(y_pred))
+    return -torch.mean(y_pred)
 
 # TODO 
 def calculate_shape_IoU_np(y_pred, y):

@@ -59,8 +59,8 @@ def train(config, log):
     # optimizer = optim.Adam([{'params': orig_para, 'lr': config["lr"]}, {'params': model.module.net.classifier[6].parameters(), 'lr': config["lr"] * 10}], lr=config["lr"], weight_decay=config["weight_decay"])
 
     # General
-    optimizer = optim.SGD(model.parameters(), lr=config["lr"], weight_decay=config["weight_decay"], momentum=config["momentum"])
-
+    optimizer = optim.Adam(model.parameters(), lr=config["lr"], weight_decay=config["weight_decay"])
+    # optimizer = optim.SGD(model.parameters(), lr=config["lr"], weight_decay=config["weight_decay"], momentum=config["momentum"])
     # decrease learning rate to 0.1 of itself at the end of training
     scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.1 ** (1 / config["epochs"]))
 
@@ -75,6 +75,11 @@ def train(config, log):
     # set best model
     best_acc = None
     
+    # evaluate first
+    log.write("Evaluating before training...\n")
+    val(config, log, model, val_loader)
+    log.write("\n")
+
     for epoch in range(config["epochs"]):
         # new epoch
         log.write("Epoch " + str(epoch) + ": ")
@@ -166,7 +171,8 @@ def train(config, log):
 
     # end of training
     model = model.cpu()
-    model.module.display(100, train_loader)
+    model.module.sample()
+    # model.module.display(24*24, train_loader)
     fig = plt.figure()
     # combine train & val metrics into a single plot
     metric_plot = {}

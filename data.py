@@ -20,8 +20,10 @@ from typing import Tuple, List
 from util import read_img, write_img
 from functions import *
 from torch.utils.data import Dataset
+import pickle
 ### Level 0: base dataset class
 class csvDataset(Dataset):
+    fmt = "csv"
     def __init__(self, partition, config) -> None:
         super().__init__()
 
@@ -59,20 +61,23 @@ class csvDataset(Dataset):
                 self._split_train_val_test_csv()
                 config["do_split"] = False  # only do_split once in one experiment
             # read csv file into a dataframe
-            df = pd.read_csv(os.path.join(self.path, partition + ".csv"))
-            self.xs = df.values
+            if self.fmt == "cvs":
+                df = pd.read_csv(os.path.join(self.path, partition + ".csv"))
+                self.xs = df.values
+            elif self.fmt == "pkl":
+                self.xs = pickle.load(open(os.path.join(self.path, partition + ".pkl"), "rb"))
 
         # store dictionary to dict_store
         # if not os.path.exists(self.dict_store):
         json.dump(self.dict, open(self.dict_store, "w"))    # user can store information using self.dict
     def __getitem__(self, index):
         # not considering partition for now
-        return self.read_xy(*self.xs[index])
+        return self.read_xy(*(self.xs[index]))
         # when testing or inferencing, now sure what to do
 
 
     def __len__(self):
-        return self.xs.shape[0]
+        return len(self.xs)
     def _split_train_val_test_csv(self) -> None:
         """
         This should be a function of class dataset
@@ -83,21 +88,42 @@ class csvDataset(Dataset):
             pass
         self._generate_all_csv()
 
-        all_df = pd.read_csv(os.path.join(self.path, "all.csv"))
-        all_df = all_df.sample(frac=1).reset_index(drop=True)
-        # print(all_df.info)
-        length = all_df.shape[0]
-        all_df.iloc[:int(train_ratio * length), :].to_csv(os.path.join(self.path, "train.csv"), index=False)
-        all_df.iloc[int(train_ratio * length) : int((train_ratio + val_ratio) * length), :].to_csv(os.path.join(self.path, "val.csv"), index=False)
-        all_df.iloc[int((train_ratio + val_ratio) * length): , :].to_csv(os.path.join(self.path, "test.csv"), index=False)
-    
+        if self.fmt == "csv":
+            all_df = pd.read_csv(os.path.join(self.path, "all.csv"))
+
+            all_df = all_df.sample(frac=1).reset_index(drop=True)
+            # print(all_df.info)
+            length = all_df.shape[0]
+            all_df.iloc[:int(train_ratio * length), :].to_csv(os.path.join(self.path, "train.csv"), index=False)
+            all_df.iloc[int(train_ratio * length) : int((train_ratio + val_ratio) * length), :].to_csv(os.path.join(self.path, "val.csv"), index=False)
+            all_df.iloc[int((train_ratio + val_ratio) * length): , :].to_csv(os.path.join(self.path, "test.csv"), index=False)
+        elif self.fmt == "pkl":
+            all_list = pickle.load(open(os.path.join(self.path, "all.pkl"), "rb"))
+            length = len(all_list)
+            # shuffle all_list
+            np.random.shuffle(all_list)
+            pickle.dump(all_list[:int(train_ratio * length)], open(os.path.join(self.path, "train.pkl"), "wb"))
+            pickle.dump(all_list[int(train_ratio * length) : int((train_ratio + val_ratio) * length)], open(os.path.join(self.path, "val.pkl"), "wb"))
+            pickle.dump(all_list[int((train_ratio + val_ratio) * length): ], open(os.path.join(self.path, "test.pkl"), "wb"))
+        else:
+            raise Exception("Unknown format %s" % self.fmt)
     def _generate_all_csv(self):
-        allcsv = open(os.path.join(self.path, "all.csv"), "w")
-        xs_list = self.get_all_xy_and_preprocess() # a tuple of iterables
-        xs_list_np = np.array(xs_list).T
-        df = pd.DataFrame(xs_list_np)
-        df.to_csv(allcsv, index=False)
-        allcsv.close()
+        if self.fmt == "csv":
+            allcsv = open(os.path.join(self.path, "all.csv"), "w")
+            xs_list = self.get_all_xy_and_preprocess() # a tuple of iterables
+            if type(xs_list) != tuple:
+                xs_list = (xs_list, )
+            df = pd.DataFrame(zip(*xs_list))
+            df.to_csv(allcsv, index=False)
+            allcsv.close()
+        elif self.fmt == "pkl":
+            xs_list = self.get_all_xy_and_preprocess() # a tuple of iterables
+            if type(xs_list) != tuple:
+                xs_list = (xs_list, )
+            
+            pickle.dump(list(zip(*xs_list)), open(os.path.join(self.path, "all.pkl"), "wb"))
+        else:
+            raise Exception("Unknown format %s" % self.fmt)
     def get_all_xy_and_preprocess(self):
         ### MUST IMPLEMENT
         raise Exception("Not Implemented")
@@ -117,7 +143,9 @@ class AutoRegress(csvDataset):
     val_metric_list = []
     loss_fn = neg_log_likelihood
     n_inputs = 1
-    n_values = 100
+    n_values = 2
+    n_dims = 28 * 28
+    fmt = "pkl"
     def __init__(self, partition, config) -> None:
         super().__init__(partition, config)
     def get_all_xy_and_preprocess(self):
@@ -125,27 +153,65 @@ class AutoRegress(csvDataset):
         # return a tuple of lists, each list being an input/output
         # what's inside each list is user defined, but the object  should be small. (path to actual object)
 
-
+        # dataset 1
         # count = 5000
         # rand = np.random.RandomState(0)
         # samples = 0.4 + 0.1 * rand.randn(count)
         # data = np.digitize(samples, np.linspace(0.0, 1.0, 20))
 
-        count = 10000
-        rand = np.random.RandomState(0)
-        a = 0.3 + 0.1 * rand.randn(count)
-        b = 0.8 + 0.05 * rand.randn(count)
-        mask = rand.rand(count) < 0.5
-        samples = np.clip(a * mask + b * (1 - mask), 0.0, 1.0)
-        data = np.digitize(samples, np.linspace(0.0, 1.0, 100))
-        plt.hist()
+        # dataset 2
+        # count = 10000
+        # rand = np.random.RandomState(0)
+        # a = 0.3 + 0.1 * rand.randn(count)
+        # b = 0.8 + 0.05 * rand.randn(count)
+        # mask = rand.rand(count) < 0.5
+        # samples = np.clip(a * mask + b * (1 - mask), 0.0, 1.0)
+        # data = np.digitize(samples, np.linspace(0.0, 1.0, 100))
 
-        return list(data)
+        # dateset 3
+        # from PIL import Image
+        # from urllib.request import urlopen
+        # import io
+        # import itertools
+
+        # im = Image.open("smiley.jpg").resize((self.n_values, self.n_values)).convert('L')
+        # im = np.array(im).astype('float32')
+        # dist = im / im.sum()
+
+        # pairs = list(itertools.product(range(self.n_values), range(self.n_values)))
+        # idxs = np.random.choice(len(pairs), size=10000, replace=True, p=dist.reshape(-1))
+        # samples = [pairs[i] for i in idxs]
+        # return samples
+
+        # dataset 4
+        # from PIL import Image
+        # from urllib.request import urlopen
+        # import io
+        # import itertools
+
+        # im = Image.open("geoffrey=hinton.jpg").resize((self.n_values, self.n_values)).convert('L')
+        # im = np.array(im).astype('float32')
+        # dist = im / im.sum()
+
+        # pairs = list(itertools.product(range(self.n_values), range(self.n_values)))
+        # idxs = np.random.choice(len(pairs), size=100000, replace=True, p=dist.reshape(-1))
+        # samples = [pairs[i] for i in idxs]
+        # return samples
+
+        # dataset 5
+        import pickle
+        with open("mnist.pkl", "rb") as f:
+            data = pickle.load(f)
+        all_data = np.concatenate([data['train'], data['test']], axis=0)
+        # Binarize MNIST and shapes dataset
+        all_data = (all_data > 127.5).astype('uint8')
+        return list(all_data)
     def read_xy(self, x):
         # How to read the actual input and output from the lists
         # The inputs to this function is exactly the the outputs of get_all_xy_and_preprocess at certain index
         # output is exactly what is given to model at certain index
-        return torch.tensor(x)
+        ts = torch.tensor(x).flatten().type(torch.long)
+        return ts
 class ImgCls(csvDataset):
     def __init__(self, partition, config) -> None:
         super().__init__(partition, config)
@@ -287,78 +353,6 @@ class PCCls(csvDataset):
         pc = self._normalize(self._sample_pc_from_mesh(mesh, 1024))
         return torch.tensor(pc, dtype=torch.float32), self.dict[y]
 
-class HuBMAP_HPA(csvDataset):
-    def __init__(self, data_folder) -> None:
-        self.data_folder = os.path.join("/data", data_folder)
-    def preprocess(self):
-        """
-        1. Generate masks from rle in train_labels
-        2. Create a csv all.csv with columns: id, img_path, label_path
-        """ 
-        train_img_path = os.path.join(self.data_folder, "train_images")
-        train_label_path = os.path.join(self.data_folder, "train_labels")
-        train_ann_path = os.path.join(self.data_folder, "train_annotations")
-        if not os.path.exists(train_label_path):
-            os.mkdir(train_label_path)
-        fd = pd.read_csv(os.path.join(self.data_folder, "train.csv"))
-        csv = open(os.path.join(self.data_folder, "all.csv"), 'w')
-        csv.write("id, img_path, label_path\n")
-
-        for i in range(fd.shape[0]):
-            rle = fd["rle"][i].strip()
-            height = fd["img_height"][i]
-            width = fd["img_width"][i]
-            id = fd["id"][i]
-            print("processing", id)
-            if not os.path.exists(os.path.join(train_label_path, "%d.npy" % id)):
-                mask = self.rle2mask(rle, height, width)
-                np.savetxt(os.path.join(train_label_path, "%d.npy" % id), mask)
-                ### testing
-                # new_rle = self.mask2rle(mask).strip()
-                # assert(rle == new_rle)
-
-            csv.write("%d, %s, %s\n" % (id, os.path.join("train_images", str(id) + ".tiff"), os.path.join("train_labels", str(id) + ".npy")))
-    def rle2mask(self, rle: str, height: int, width: int) -> np.ndarray:
-        """
-        Convert label format from rle to 2D np.ndarray masks
-        """
-        mask = np.zeros((height * width,))
-        rle_l = rle.strip().split(' ')
-        for i in range(0, len(rle_l) - 1, 2):
-            # print(i, "/", len(rle_l) - 1)
-            start, step = int(rle_l[i]), int(rle_l[i + 1])
-            # print(start, step)
-            mask[start - 1: start - 1 + step] = 1
-        mask = mask.reshape(width, height).T
-
-        return mask
-    def mask2rle(self, img: np.ndarray) -> str:
-        '''
-        img: numpy array, 1 - mask, 0 - background
-        Returns run length as string formated
-        '''
-        pixels= img.T.flatten()
-        pixels = np.concatenate([[0], pixels, [0]])
-        runs = np.where(pixels[1:] != pixels[:-1])[0] + 1
-        runs[1::2] -= runs[::2]
-        return ' '.join(str(x) for x in runs)
-    def visualize(self, idx: int = 0):
-        train_img_path = os.path.join(self.data_folder, "train_images")
-        train_label_path = os.path.join(self.data_folder, "train_labels")
-        train_ann_path = os.path.join(self.data_folder, "train_annotations")
-        df = pd.read_csv(os.path.join(self.data_folder, "train.csv"))
-        img_id = df["id"][idx]
-
-        my_img = np.array(Image.open(os.path.join(train_img_path, str(img_id) + ".tiff")))
-
-        my_label = np.loadtxt(os.path.join(train_label_path, str(img_id) + ".npy")).astype(bool)
-        my_ann = json.load(open(os.path.join(train_ann_path, str(img_id) + ".json")))
-        for cycle in my_ann:
-            for x,y in cycle:
-                my_img[y-10:y+10,x-10:x+10, 0] = 255
-        my_img[my_label, 2] = 255
-        plt.imshow(my_img)
-        plt.show()
 
 class lung(ImgCls):
     # data_path = "/data/lung_orig"
@@ -399,7 +393,6 @@ class VOC2012(ImgSeg):
         return save_path
     def read_xy(self, x, y):
         return self.aug_crop(read_img(x) / 255, read_img(y).type(torch.long))
-
 
 if __name__ == "__main__":
     # for testing
