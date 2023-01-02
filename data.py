@@ -1,7 +1,6 @@
 import os
 import numpy as np
 # from util import readMNIST
-from preprocess import split_train_val_test_csv
 import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib import image
@@ -31,8 +30,8 @@ class csvDataset(Dataset):
         self.config = config
 
         # get self.path
-        if "data_path" in config["task_data_arg"] and config["task_data_arg"]["data_path"] is not None and os.path.isdir(config["task_data_arg"]["data_path"]):
-            self.path = config["task_data_arg"]["data_path"]
+        if "data_path" in config["arg_from_data"] and config["arg_from_data"]["data_path"] is not None and os.path.isdir(config["arg_from_data"]["data_path"]):
+            self.path = config["arg_from_data"]["data_path"]
         else:
             self.path = os.path.join(config["dataroot"], config["data"].__name__)
             if not os.path.isdir(self.path):
@@ -55,13 +54,12 @@ class csvDataset(Dataset):
             if config["do_split"] == True or not os.path.exists(os.path.join(self.path, partition + ".csv")):
                 print(os.path.join(self.path, partition + ".csv") + " does not exist, do split?(May overwrite other existing csv)(y/n)", file=sys.stderr)
                 user = input()
-                
                 if user not in ["y", "Y"]:
                     raise Exception("Canceled")
                 self._split_train_val_test_csv()
                 config["do_split"] = False  # only do_split once in one experiment
             # read csv file into a dataframe
-            if self.fmt == "cvs":
+            if self.fmt == "csv":
                 df = pd.read_csv(os.path.join(self.path, partition + ".csv"))
                 self.xs = df.values
             elif self.fmt == "pkl":
@@ -72,7 +70,7 @@ class csvDataset(Dataset):
         json.dump(self.dict, open(self.dict_store, "w"))    # user can store information using self.dict
     def __getitem__(self, index):
         # not considering partition for now
-        return self.read_xy(*(self.xs[index]))
+        return self.read_data(*(self.xs[index]))
         # when testing or inferencing, now sure what to do
 
 
@@ -110,26 +108,26 @@ class csvDataset(Dataset):
     def _generate_all_csv(self):
         if self.fmt == "csv":
             allcsv = open(os.path.join(self.path, "all.csv"), "w")
-            xs_list = self.get_all_xy_and_preprocess() # a tuple of iterables
+            xs_list = self.list_data() # a tuple of iterables
             if type(xs_list) != tuple:
                 xs_list = (xs_list, )
             df = pd.DataFrame(zip(*xs_list))
             df.to_csv(allcsv, index=False)
             allcsv.close()
         elif self.fmt == "pkl":
-            xs_list = self.get_all_xy_and_preprocess() # a tuple of iterables
+            xs_list = self.list_data() # a tuple of iterables
             if type(xs_list) != tuple:
                 xs_list = (xs_list, )
             
             pickle.dump(list(zip(*xs_list)), open(os.path.join(self.path, "all.pkl"), "wb"))
         else:
             raise Exception("Unknown format %s" % self.fmt)
-    def get_all_xy_and_preprocess(self):
+    def list_data(self):
         ### MUST IMPLEMENT
         raise Exception("Not Implemented")
     def preprocess(self, *args):
         raise Exception("Not Implemented")
-    def read_xy(self, x, y):
+    def read_data(self, x, y):
         ### MUST IMPLEMENT
         raise Exception("Not Implemented")
     def train_augs(self, x, y):
@@ -137,86 +135,12 @@ class csvDataset(Dataset):
     def test_augs(self, x, y):
         raise Exception("Not Implemented")
 
-### Level 1: experiment type
-class AutoRegress(csvDataset):
-    train_metric_list = []
-    val_metric_list = []
-    loss_fn = neg_log_likelihood
-    n_inputs = 1
-    n_values = 2
-    n_dims = 28 * 28
-    fmt = "pkl"
-    def __init__(self, partition, config) -> None:
-        super().__init__(partition, config)
-    def get_all_xy_and_preprocess(self):
-        # Find all inputs and outputs
-        # return a tuple of lists, each list being an input/output
-        # what's inside each list is user defined, but the object  should be small. (path to actual object)
-
-        # dataset 1
-        # count = 5000
-        # rand = np.random.RandomState(0)
-        # samples = 0.4 + 0.1 * rand.randn(count)
-        # data = np.digitize(samples, np.linspace(0.0, 1.0, 20))
-
-        # dataset 2
-        # count = 10000
-        # rand = np.random.RandomState(0)
-        # a = 0.3 + 0.1 * rand.randn(count)
-        # b = 0.8 + 0.05 * rand.randn(count)
-        # mask = rand.rand(count) < 0.5
-        # samples = np.clip(a * mask + b * (1 - mask), 0.0, 1.0)
-        # data = np.digitize(samples, np.linspace(0.0, 1.0, 100))
-
-        # dateset 3
-        # from PIL import Image
-        # from urllib.request import urlopen
-        # import io
-        # import itertools
-
-        # im = Image.open("smiley.jpg").resize((self.n_values, self.n_values)).convert('L')
-        # im = np.array(im).astype('float32')
-        # dist = im / im.sum()
-
-        # pairs = list(itertools.product(range(self.n_values), range(self.n_values)))
-        # idxs = np.random.choice(len(pairs), size=10000, replace=True, p=dist.reshape(-1))
-        # samples = [pairs[i] for i in idxs]
-        # return samples
-
-        # dataset 4
-        # from PIL import Image
-        # from urllib.request import urlopen
-        # import io
-        # import itertools
-
-        # im = Image.open("geoffrey=hinton.jpg").resize((self.n_values, self.n_values)).convert('L')
-        # im = np.array(im).astype('float32')
-        # dist = im / im.sum()
-
-        # pairs = list(itertools.product(range(self.n_values), range(self.n_values)))
-        # idxs = np.random.choice(len(pairs), size=100000, replace=True, p=dist.reshape(-1))
-        # samples = [pairs[i] for i in idxs]
-        # return samples
-
-        # dataset 5
-        import pickle
-        with open("mnist.pkl", "rb") as f:
-            data = pickle.load(f)
-        all_data = np.concatenate([data['train'], data['test']], axis=0)
-        # Binarize MNIST and shapes dataset
-        all_data = (all_data > 127.5).astype('uint8')
-        return list(all_data)
-    def read_xy(self, x):
-        # How to read the actual input and output from the lists
-        # The inputs to this function is exactly the the outputs of get_all_xy_and_preprocess at certain index
-        # output is exactly what is given to model at certain index
-        ts = torch.tensor(x).flatten().type(torch.long)
-        return ts
+### Level 1: task-specific dataset
 class ImgCls(csvDataset):
     def __init__(self, partition, config) -> None:
         super().__init__(partition, config)
 
-    def get_all_xy_and_preprocess(self):
+    def list_data(self):
         X, Y = [], []
         if "_counter" not in self.dict:
             self.dict["_counter"] = 0
@@ -232,7 +156,7 @@ class ImgCls(csvDataset):
                 X.append(ext_img)
                 Y.append(self.dict[folder])
         return X, Y
-    def read_xy(self, x, y):
+    def read_data(self, x, y):
         # for train, val and test
         # print(set((read_img(x) / 255).flatten().numpy()))
         # print(read_img(x).shape)
@@ -241,7 +165,6 @@ class ImgCls(csvDataset):
     def aug_resize(self, x):
         # Resize the image
         return T.functional.resize(x, (224, 224))
-
 class ImgSeg(csvDataset):
     train_metric_list = [class_acc, calculate_shape_IoU_np]
     val_metric_list = [calculate_shape_IoU_np, class_acc]
@@ -307,10 +230,13 @@ class ImgSeg(csvDataset):
     def aug_crop(self, x, y):
         # Cropping to 200 x 300
         return self._random_crop(x, y, (200, 300))
-
 class PCCls(csvDataset):
-    n_category = 22
-    input_shape = None
+
+    train_metric_list = [class_acc]
+    val_metric_list = [class_acc]
+    loss_fn = CEloss
+    n_inputs = 1
+
     def __init__(self, partition, config) -> None:
         super().__init__(partition, config)
 
@@ -325,7 +251,19 @@ class PCCls(csvDataset):
         return pc
     def _sample_pc_from_mesh(self, mesh, num_samples):
         return trimesh.sample.sample_surface(mesh, num_samples)[0]
-    def get_all_xy_and_preprocess(self):
+    def list_data(self):
+        raise Exception("Not Implemented")
+    def read_data(self, x, y):
+        # load mesh
+        mesh = trimesh.load(file_obj=open(x), file_type="off")
+        # sample from mesh
+        pc = self._normalize(self._sample_pc_from_mesh(mesh, 1024))
+        return torch.tensor(pc, dtype=torch.float32), self.dict[y]
+class ModelNet10(PCCls):
+    n_category = 10
+    def __init__(self, partition, config) -> None:
+        super().__init__(partition, config)
+    def list_data(self):
         X, Y = [], []
         if "_counter" not in self.dict:
             self.dict["_counter"] = 0
@@ -344,9 +282,8 @@ class PCCls(csvDataset):
                 ext_mesh = os.path.join(train_set, mesh)
                 X.append(ext_mesh)
                 Y.append(cls)
-
         return X, Y
-    def read_xy(self, x, y):
+    def read_data(self, x, y):
         # load mesh
         mesh = trimesh.load(file_obj=open(x), file_type="off")
         # sample from mesh
@@ -354,15 +291,84 @@ class PCCls(csvDataset):
         return torch.tensor(pc, dtype=torch.float32), self.dict[y]
 
 
-class lung(ImgCls):
-    # data_path = "/data/lung_orig"
-    train_metric_list = [class_acc]
-    val_metric_list = [class_acc]
-    loss_fn = CEloss
-    n_category = 4
+
+class AutoRegress(csvDataset):
+    train_metric_list = []
+    val_metric_list = []
+    loss_fn = neg_log_likelihood
     n_inputs = 1
+    n_values = 2
+    n_dims = 28 * 28
+    fmt = "pkl"
     def __init__(self, partition, config) -> None:
         super().__init__(partition, config)
+    def list_data(self):
+        # Find all inputs and outputs
+        # return a tuple of lists, each list being an input/output
+        # what's inside each list is user defined, but the object  should be small. (path to actual object)
+
+        # dataset 1
+        # count = 5000
+        # rand = np.random.RandomState(0)
+        # samples = 0.4 + 0.1 * rand.randn(count)
+        # data = np.digitize(samples, np.linspace(0.0, 1.0, 20))
+
+        # dataset 2
+        # count = 10000
+        # rand = np.random.RandomState(0)
+        # a = 0.3 + 0.1 * rand.randn(count)
+        # b = 0.8 + 0.05 * rand.randn(count)
+        # mask = rand.rand(count) < 0.5
+        # samples = np.clip(a * mask + b * (1 - mask), 0.0, 1.0)
+        # data = np.digitize(samples, np.linspace(0.0, 1.0, 100))
+
+        # dateset 3
+        # from PIL import Image
+        # from urllib.request import urlopen
+        # import io
+        # import itertools
+
+        # im = Image.open("smiley.jpg").resize((self.n_values, self.n_values)).convert('L')
+        # im = np.array(im).astype('float32')
+        # dist = im / im.sum()
+
+        # pairs = list(itertools.product(range(self.n_values), range(self.n_values)))
+        # idxs = np.random.choice(len(pairs), size=10000, replace=True, p=dist.reshape(-1))
+        # samples = [pairs[i] for i in idxs]
+        # return samples
+
+        # dataset 4
+        # from PIL import Image
+        # from urllib.request import urlopen
+        # import io
+        # import itertools
+
+        # im = Image.open("geoffrey=hinton.jpg").resize((self.n_values, self.n_values)).convert('L')
+        # im = np.array(im).astype('float32')
+        # dist = im / im.sum()
+
+        # pairs = list(itertools.product(range(self.n_values), range(self.n_values)))
+        # idxs = np.random.choice(len(pairs), size=100000, replace=True, p=dist.reshape(-1))
+        # samples = [pairs[i] for i in idxs]
+        # return samples
+
+        # dataset 5
+        import pickle
+        with open("mnist.pkl", "rb") as f:
+            data = pickle.load(f)
+        all_data = np.concatenate([data['train'], data['test']], axis=0)
+        # Binarize MNIST and shapes dataset
+        all_data = (all_data > 127.5).astype('uint8')
+        return list(all_data)
+    def read_data(self, x):
+        # How to read the actual input and output from the lists
+        # The inputs to this function is exactly the the outputs of list_data at certain index
+        # output is exactly what is given to model at certain index
+        ts = torch.tensor(x).flatten().type(torch.long)
+        return ts
+
+
+
 ### Level 2: dataset
 class VOC2012(ImgSeg):
     data_path = None
@@ -370,7 +376,7 @@ class VOC2012(ImgSeg):
     input_shape = None
     def __init__(self, partition, config) -> None:
         super().__init__(partition, config)
-    def get_all_xy_and_preprocess(self):
+    def list_data(self):
         X, Y = [], []
         for y in tqdm(os.listdir(os.path.join(self.path, "SegmentationClass"))):
             
@@ -391,7 +397,7 @@ class VOC2012(ImgSeg):
         save_path = seg_path + "_p" + ".png"
         write_img(y_np, save_path)
         return save_path
-    def read_xy(self, x, y):
+    def read_data(self, x, y):
         return self.aug_crop(read_img(x) / 255, read_img(y).type(torch.long))
 
 if __name__ == "__main__":

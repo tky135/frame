@@ -1,7 +1,7 @@
 #### general
 data:
   # VOC2012, AutoRegress
-  AutoRegress
+  ModelNet10
 exp_type:
   train
 do_split:
@@ -9,7 +9,7 @@ do_split:
   False
 model:
   # smooth_histogram, FCN, mixture_logistics
-  smooth_histogram
+  TestPointNet
 dataroot:
   /data
 
@@ -23,7 +23,7 @@ train_val_test_ratio:
 exp_name:
   # name of the experiment
 epochs:
-  100
+  30
 force:
   True
 

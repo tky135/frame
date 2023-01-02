@@ -103,7 +103,7 @@ class MobileNetV2(nn.Module):
         return y
 
 class FCN(nn.Module):
-    def __init__(self, n_category=21, pretrained=False, *args, **kwargs):
+    def __init__(self, n_category, pretrained=False, *args, **kwargs):
         super().__init__()
         self.net = torch.hub.load('pytorch/vision:v0.10.0', 'fcn_resnet50', pretrained=pretrained)
         if n_category != 21:
@@ -140,9 +140,19 @@ class Local_op(nn.Module):
         x = F.adaptive_max_pool1d(x, 1).view(batch_size, -1)
         x = x.reshape(b, n, -1).permute(0, 2, 1)
         return x
+class TestPointNet(nn.Module):
+    def __init__(self, n_category, **kwargs):
+        super().__init__()
+        self.linear1 = nn.Linear(3, 128)
+        self.linear2 = nn.Linear(128, n_category)
+    def forward(self, x):
+        x = F.relu(self.linear1(x))
+        x = torch.max(x, 1)[0]
+        x = self.linear2(x)
+        return x
 
 class Pct(nn.Module):
-    def __init__(self, output_channels=40):
+    def __init__(self, n_category=40, **kwargs):
         super(Pct, self).__init__()
         self.conv1 = nn.Conv1d(3, 64, kernel_size=1, bias=False)
         self.conv2 = nn.Conv1d(64, 64, kernel_size=1, bias=False)
@@ -164,7 +174,7 @@ class Pct(nn.Module):
         self.linear2 = nn.Linear(512, 256)
         self.bn7 = nn.BatchNorm1d(256)
         self.dp2 = nn.Dropout(p=0.5)
-        self.linear3 = nn.Linear(256, output_channels)
+        self.linear3 = nn.Linear(256, n_category)
 
     def forward(self, x):
         # xyz = x.permute(0, 2, 1)

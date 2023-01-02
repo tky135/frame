@@ -11,7 +11,6 @@ import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from model import *
 from autoregress_model import *
-from preprocess import *
 from util import *
 from data import *
 from functions import *
@@ -34,29 +33,18 @@ def train(config, log):
     val_loader = DataLoader(val_dataset, batch_size=config["batch_size"], shuffle=False, drop_last=False, num_workers=8)
 
     # set model
-    model = config["model"](**config["task_data_arg"]).to(device)
+    model = config["model"](**config["arg_from_data"]).to(device)
     # model = torch.nn.Sequential(nn.Linear(18, 32), nn.ReLU(), nn.Linear(32, 1)).to(device)
     # print(model)
     if device != torch.device("cpu"):
         model = nn.DataParallel(model)
 
-    ## TODO add continue training
     if config["continue"] == True:
         model_path = "experiments/" + config["exp_name"] + "/model.t7"
         if not os.path.exists(model_path):
             raise Exception(model_path, "Does not exist")
         print("Loading state dict from: " + model_path + " ...")
         model.load_state_dict(torch.load(model_path))
-    # set optimizer and scheduler
-    # set different parameters for different layers
-
-    # ResNet18
-    # orig_para = [para for name, para in model.module.net.named_parameters() if name not in ['fc.weight', 'fc.bias']]
-    # optimizer = optim.Adam([{'params': orig_para, 'lr': config["lr"]}, {'params': model.module.net.fc.parameters(), 'lr': config["lr"] * 10}], lr=config["lr"], weight_decay=config["weight_decay"])
-
-    # AlexNet
-    # orig_para = [para for name, para in model.module.net.named_parameters() if name not in ['classifier.6.weight', 'classifier.6.bias']]
-    # optimizer = optim.Adam([{'params': orig_para, 'lr': config["lr"]}, {'params': model.module.net.classifier[6].parameters(), 'lr': config["lr"] * 10}], lr=config["lr"], weight_decay=config["weight_decay"])
 
     # General
     optimizer = optim.Adam(model.parameters(), lr=config["lr"], weight_decay=config["weight_decay"])
@@ -68,9 +56,9 @@ def train(config, log):
     all_metrics = {"train": {}, "val": {}}
 
     # initialize all_metrics
-    for metric in config["task_data_arg"]["train_metric_list"] + [config["task_data_arg"]["loss_fn"]]:
+    for metric in config["arg_from_data"]["train_metric_list"] + [config["arg_from_data"]["loss_fn"]]:
         all_metrics["train"][metric.__name__] = []
-    for metric in config["task_data_arg"]["val_metric_list"] + [config["task_data_arg"]["loss_fn"]]:
+    for metric in config["arg_from_data"]["val_metric_list"] + [config["arg_from_data"]["loss_fn"]]:
         all_metrics["val"][metric.__name__] = []
     # set best model
     best_acc = None
@@ -95,16 +83,16 @@ def train(config, log):
                 xx = [x_y.to(device)]
                 yy = []
             else:
-                xx = [x_y[i].to(device) for i in range(config["task_data_arg"]["n_inputs"])]
-                yy = [x_y[i].to(device) for i in range(config["task_data_arg"]["n_inputs"], len(x_y))]
+                xx = [x_y[i].to(device) for i in range(config["arg_from_data"]["n_inputs"])]
+                yy = [x_y[i].to(device) for i in range(config["arg_from_data"]["n_inputs"], len(x_y))]
             b = xx[0].shape[0]
             y_pred = model(*xx)
             # if isinstance(y_pred, torch.Tensor):
-            #     loss = config["task_data_arg"]["loss_fn"](y_pred, *yy)
+            #     loss = config["arg_from_data"]["loss_fn"](y_pred, *yy)
             # else:
-            #     loss = config["task_data_arg"]["loss_fn"](*y_pred, *yy)
-            loss = config["task_data_arg"]["loss_fn"](y_pred, *yy) if isinstance(y_pred, torch.Tensor) else config["task_data_arg"]["loss_fn"](*y_pred, *yy)
-            all_metrics["train"][config["task_data_arg"]["loss_fn"].__name__][-1] += loss.item() * b
+            #     loss = config["arg_from_data"]["loss_fn"](*y_pred, *yy)
+            loss = config["arg_from_data"]["loss_fn"](y_pred, *yy) if isinstance(y_pred, torch.Tensor) else config["arg_from_data"]["loss_fn"](*y_pred, *yy)
+            all_metrics["train"][config["arg_from_data"]["loss_fn"].__name__][-1] += loss.item() * b
             # backward pass
             optimizer.zero_grad()
             loss.backward()
@@ -115,7 +103,7 @@ def train(config, log):
             print("loss: %.4f" % loss.item(), end='\t')
             with torch.no_grad():
 
-                for metric in config["task_data_arg"]["train_metric_list"]:
+                for metric in config["arg_from_data"]["train_metric_list"]:
 
                     acc = metric(y_pred, *yy) if isinstance(y_pred, torch.Tensor) else metric(*y_pred, *yy)
                     print(metric.__name__ + ": %.4f" % acc, end='\t')
@@ -223,13 +211,13 @@ def val(config, log, in_model, val_loader):
                 xx = [x_y.to(device)]
                 yy = []
             else:
-                xx = [x_y[i].to(device) for i in range(config["task_data_arg"]["n_inputs"])]
-                yy = [x_y[i].to(device) for i in range(config["task_data_arg"]["n_inputs"], len(x_y))]
+                xx = [x_y[i].to(device) for i in range(config["arg_from_data"]["n_inputs"])]
+                yy = [x_y[i].to(device) for i in range(config["arg_from_data"]["n_inputs"], len(x_y))]
             b = xx[0].shape[0]
 
             # forward pass
             y_pred = model(*xx)
-            for metric in [config["task_data_arg"]["loss_fn"]] + config["task_data_arg"]["val_metric_list"]:
+            for metric in [config["arg_from_data"]["loss_fn"]] + config["arg_from_data"]["val_metric_list"]:
                 # if isinstance(y_pred, torch.Tensor):
                 #     acc = metric(y_pred, *yy)
                 # else:
@@ -256,7 +244,7 @@ def val(config, log, in_model, val_loader):
 # def test(config):
 #     device = torch.device("cuda" if (config["cuda"] and torch.cuda.is_available()) else "cpu")
 
-#     model = config["model"](**config["task_data_arg"])
+#     model = config["model"](**config["arg_from_data"])
 #     if device != torch.device("cpu"):
 #         model = nn.DataParallel(model)
 #     model_path = "experiments/" + config["exp_name"] + "/model.t7"
@@ -302,7 +290,7 @@ def val(config, log, in_model, val_loader):
 # def inference(config):
 
 #     device = torch.device("cuda" if config["cuda"] else "cpu")
-#     model = config["model"](**config["task_data_arg"])
+#     model = config["model"](**config["arg_from_data"])
 #     if device != torch.device("cpu"):
 #         model = nn.DataParallel(model)
 #     model_path = "experiments/" + config["exp_name"] + "/model.t7"
@@ -386,7 +374,7 @@ if __name__ == "__main__":
     # generate arguments to model
 
     # (inspect.isfunction(m[1]) or 
-    config["task_data_arg"] = dict([m for m in inspect.getmembers(config['data']) if not (inspect.ismethod(m[1]) or m[0].startswith('_'))])     # risky, but let's keep it this way for now
+    config["arg_from_data"] = dict([m for m in inspect.getmembers(config['data']) if not (inspect.ismethod(m[1]) or m[0].startswith('_'))])     # risky, but let's keep it this way for now
     if config["exp_type"] == "train":
         # make output directories
 
