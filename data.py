@@ -35,8 +35,10 @@ class csvDataset(Dataset):
         else:
             self.path = os.path.join(config["dataroot"], config["data"].__name__)
             if not os.path.isdir(self.path):
-                warnings.warn("data path %s not found, creating a new one. " % "self.path")
-                os.makedirs(self.path)
+                # warnings.warn("data path %s not found, creating a new one. " % "self.path")
+                # os.makedirs(self.path)
+                print("ERROR: self.path = ", self.path, "not found. ")
+                raise Exception("Path Not Found")
         
         # loading self.dict_store if exists
         self.dict_store = os.path.join(self.path, "dict_store.json")
@@ -107,6 +109,7 @@ class csvDataset(Dataset):
             raise Exception("Unknown format %s" % self.fmt)
     def _generate_all_csv(self):
         if self.fmt == "csv":
+            
             allcsv = open(os.path.join(self.path, "all.csv"), "w")
             xs_list = self.list_data() # a tuple of iterables
             if type(xs_list) != tuple:
@@ -261,6 +264,7 @@ class PCCls(csvDataset):
         return torch.tensor(pc, dtype=torch.float32), self.dict[y]
 class ModelNet10(PCCls):
     n_category = 10
+    data_path = "ModelNet10"
     def __init__(self, partition, config) -> None:
         super().__init__(partition, config)
     def list_data(self):
