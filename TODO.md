@@ -1,4 +1,6 @@
 Why .csv: to make sure previous split is kept when we test; split can be exported
+A very dog thing about pandas: when it write strings, there's no "". So if a string are all digits, when it's read in again, it will be treated as an integer
+A very dog thing about json: only allow string keys
 ##### TODO
 1. Allow user to explicitly specify the test list
 1. Make continue training better

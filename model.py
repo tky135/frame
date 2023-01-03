@@ -140,7 +140,7 @@ class Local_op(nn.Module):
         x = F.adaptive_max_pool1d(x, 1).view(batch_size, -1)
         x = x.reshape(b, n, -1).permute(0, 2, 1)
         return x
-class TestPointNet(nn.Module):
+class TestPCCls(nn.Module):
     def __init__(self, n_category, **kwargs):
         super().__init__()
         self.linear1 = nn.Linear(3, 128)
@@ -150,7 +150,11 @@ class TestPointNet(nn.Module):
         x = torch.max(x, 1)[0]
         x = self.linear2(x)
         return x
-
+class TestPCSeg(nn.Module):
+    def __init__(self, n_category, **kwargs) -> None:
+        super().__init__()
+        self.linear1 = nn.Linear(3, 128)
+        
 class Pct(nn.Module):
     def __init__(self, n_category=40, **kwargs):
         super(Pct, self).__init__()

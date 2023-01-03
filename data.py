@@ -24,11 +24,13 @@ import pickle
 class csvDataset(Dataset):
     fmt = "csv"
     def __init__(self, partition, config) -> None:
+        print(super().__init__)
+        print(type(self).__mro__)
+        print(super(csvDataset, self).__init__)
         super().__init__()
-
         self.partition = partition
         self.config = config
-
+        print(config)
         # get self.path
         if "data_path" in config["arg_from_data"] and config["arg_from_data"]["data_path"] is not None and os.path.isdir(config["arg_from_data"]["data_path"]):
             self.path = config["arg_from_data"]["data_path"]
@@ -37,7 +39,7 @@ class csvDataset(Dataset):
             if not os.path.isdir(self.path):
                 # warnings.warn("data path %s not found, creating a new one. " % "self.path")
                 # os.makedirs(self.path)
-                print("ERROR: self.path = ", self.path, "not found. ")
+                print("ERROR: self.path = ", self.path, "not found. ", file=sys.stderr)
                 raise Exception("Path Not Found")
         
         # loading self.dict_store if exists
@@ -46,26 +48,34 @@ class csvDataset(Dataset):
         if os.path.exists(self.dict_store):
             self.dict = json.load(open(self.dict_store))
 
-        # get self.x (and self.y)
-        ### TODO single out inf ??? 
-        if partition == "inf":
-            self.x = None
-            self.y = None
-        else:
+        # generate partition.csv if not exist
+        if not os.path.exists(os.path.join(self.path, self.partition + ".csv")):
+            if hasattr(self, "list_" + self.partition + "_data"):
+                xs_list = getattr(self, "list_" + self.partition + "_data")()
+                partition_csv = open(os.path.join(self.path, self.partition + ".csv"), "w")
+                if type(xs_list) != tuple:
+                    xs_list = (xs_list, )
+                df = pd.DataFrame(zip(*xs_list))
+                df.to_csv(partition_csv, index=False)
+                partition_csv.close()
+
             # if do_split is set to True, or no valid csv file, split the dataset
-            if config["do_split"] == True or not os.path.exists(os.path.join(self.path, partition + ".csv")):
-                print(os.path.join(self.path, partition + ".csv") + " does not exist, do split?(May overwrite other existing csv)(y/n)", file=sys.stderr)
-                user = input()
-                if user not in ["y", "Y"]:
-                    raise Exception("Canceled")
-                self._split_train_val_test_csv()
-                config["do_split"] = False  # only do_split once in one experiment
-            # read csv file into a dataframe
-            if self.fmt == "csv":
-                df = pd.read_csv(os.path.join(self.path, partition + ".csv"))
-                self.xs = df.values
-            elif self.fmt == "pkl":
-                self.xs = pickle.load(open(os.path.join(self.path, partition + ".pkl"), "rb"))
+            else:
+                if config["do_split"] == True:
+                    print("WARNING: " + os.path.join(self.path, partition + ".csv") + " does not exist and method list_" + self.partition + "_data is not defined, do split?(May overwrite other existing csv)(y/n)", file=sys.stderr)
+                    user = input()
+                    if user not in ["y", "Y"]:
+                        raise Exception("Canceled")
+                    self._split_train_val_test_csv()
+                    config["do_split"] = False  # only do_split once in one experiment
+        
+        # read csv file into a dataframe
+        
+        if self.fmt == "csv":
+            df = pd.read_csv(os.path.join(self.path, partition + ".csv"))
+            self.xs = df.values
+        elif self.fmt == "pkl":
+            self.xs = pickle.load(open(os.path.join(self.path, partition + ".pkl"), "rb"))
 
         # store dictionary to dict_store
         # if not os.path.exists(self.dict_store):
@@ -125,18 +135,6 @@ class csvDataset(Dataset):
             pickle.dump(list(zip(*xs_list)), open(os.path.join(self.path, "all.pkl"), "wb"))
         else:
             raise Exception("Unknown format %s" % self.fmt)
-    def list_data(self):
-        ### MUST IMPLEMENT
-        raise Exception("Not Implemented")
-    def preprocess(self, *args):
-        raise Exception("Not Implemented")
-    def read_data(self, x, y):
-        ### MUST IMPLEMENT
-        raise Exception("Not Implemented")
-    def train_augs(self, x, y):
-        raise Exception("Not Implemented")
-    def test_augs(self, x, y):
-        raise Exception("Not Implemented")
 
 ### Level 1: task-specific dataset
 class ImgCls(csvDataset):
@@ -235,6 +233,7 @@ class ImgSeg(csvDataset):
         return self._random_crop(x, y, (200, 300))
 class PCCls(csvDataset):
 
+
     train_metric_list = [class_acc]
     val_metric_list = [class_acc]
     loss_fn = CEloss
@@ -262,6 +261,122 @@ class PCCls(csvDataset):
         # sample from mesh
         pc = self._normalize(self._sample_pc_from_mesh(mesh, 1024))
         return torch.tensor(pc, dtype=torch.float32), self.dict[y]
+class PCSeg(csvDataset):
+    data_path = "/data/ShapeNetPart"
+    def __init__(self, partition, config) -> None:
+        super().__init__(partition, config)
+        return
+    def _normalize(self, pc):
+        """
+        np array
+        """
+        centroid = np.mean(pc, axis=0)
+        pc = pc - centroid
+        m = np.max(np.sqrt(np.sum(pc**2, axis=1)))
+        pc = pc / m
+        return pc
+    def _sample_pc_from_mesh(self, mesh, num_samples):
+        return trimesh.sample.sample_surface(mesh, num_samples)[0]
+    def _sample_pc_with_label(self, pc, label, num_samples):
+        """
+        pc: np array with shape [n, 3]
+        label: np array with shape [n]
+        """
+        print(pc.shape, label.shape)
+        assert pc.shape[0] == label.shape[0]
+        n = pc.shape[0]
+        indices = np.random.choice(n, num_samples, replace=False)
+        return pc[indices], label[indices]
+class ShapeNetPart(PCSeg, csvDataset):
+    def __init__(self, partition, config) -> None:
+        super().__init__(partition, config)
+
+    def list_train_data(self):
+        X, C, Y = [], [], []
+        if "_counter" not in self.dict:
+            self.dict["_counter"] = 0
+            self.dict["int2str"] = {}
+            self.dict["cat_start"] = {"_counter": 0}
+        train_path = os.path.join(self.data_path, "train_data")
+        for cat in os.listdir(train_path):
+            cat_path = os.path.join(train_path, cat)
+            if cat not in self.dict:
+                # new category
+                self.dict[cat] = self.dict["_counter"]
+                self.dict["_counter"] += 1          # make this into a service? Yes!
+                self.dict["int2str"][self.dict[cat]] = cat
+                self.dict["cat_start"][cat] = self.dict["cat_start"]["_counter"]
+                # count the number of parts in a category
+                maximum_label = 0
+                for label in os.listdir(os.path.join(self.data_path, "train_label", cat))[:10]:
+                    label_path = os.path.join(self.data_path, "train_label", cat, label)
+                    maximum_label = max(int(np.max(np.loadtxt(label_path))), maximum_label)
+                self.dict["cat_start"]["_counter"] += maximum_label
+            for pc in os.listdir(cat_path):
+                X.append(os.path.join(cat_path, pc))
+                C.append(self.dict[cat])
+                Y.append(os.path.join(self.data_path, "train_label", cat, os.path.splitext(pc)[0] + ".seg"))
+        return X, C, Y
+    def list_val_data(self):
+        X, C, Y = [], [], []
+        if "_counter" not in self.dict:
+            self.dict["_counter"] = 0
+        val_path = os.path.join(self.data_path, "val_data")
+        for cat in os.listdir(val_path):
+            cat_path = os.path.join(val_path, cat)
+            if cat not in self.dict:
+                self.dict[cat] = self.dict["_counter"]
+                self.dict["_counter"] += 1          # make this into a service? 
+            for pc in os.listdir(cat_path):
+                X.append(os.path.join(cat_path, pc))
+                C.append(self.dict[cat])
+                Y.append(os.path.join(self.data_path, "val_label", cat, os.path.splitext(pc)[0] + ".seg"))
+        return X, C, Y
+    def list_test_data(self):
+        X, C, Y = [], [], []
+        if "_counter" not in self.dict:
+            self.dict["_counter"] = 0
+        test_path = os.path.join(self.data_path, "test_data")
+        for cat in os.listdir(test_path):
+            cat_path = os.path.join(test_path, cat)
+            if cat not in self.dict:
+                self.dict[cat] = self.dict["_counter"]
+                self.dict["_counter"] += 1          # make this into a service? 
+            for pc in os.listdir(cat_path):
+                X.append(os.path.join(cat_path, pc))
+                C.append(self.dict[cat])
+                Y.append(os.path.join(self.data_path, "test_label", cat, os.path.splitext(pc)[0] + ".seg"))
+        return X, C, Y
+
+    def read_data(self, x, c, y):
+
+        x = np.loadtxt(x)
+        y = np.loadtxt(y)
+        x = self._normalize(x)
+        x, y = self._sample_pc_with_label(x, y, 1024)
+        y = y + self.dict["cat_start"][self.dict["int2str"][str(c)]] - 1
+        # make one-hot vector
+        c_one_hot = torch.zeros(self.dict["_counter"], dtype=torch.long)
+        c_one_hot[c] = 1
+        return torch.tensor(x, dtype=torch.float32), c_one_hot, torch.tensor(y, dtype=torch.long)
+
+
+
+def test_dataset(class_name):
+    import inspect
+    from torch.utils.data import DataLoader
+    config = {"data": class_name, "train_val_test_ratio": [0.8, 0.2, 0], "dataroot": "/foobar", "do_split": True}
+    config["arg_from_data"] = dict([m for m in inspect.getmembers(class_name) if not (inspect.ismethod(m[1]) or m[0].startswith('_'))])     # risky, but let's keep it this way for now
+    # __init__
+    inst = class_name("train", config)
+    # __getitem__
+    print(inst[0])
+    # data loader
+    inst_loader = DataLoader(inst, 32, shuffle=True, drop_last=False, num_workers=8)
+    for data in inst_loader:
+        for d in data:
+            print(d.shape)
+        break
 class ModelNet10(PCCls):
     n_category = 10
     data_path = "ModelNet10"
@@ -405,15 +520,16 @@ class VOC2012(ImgSeg):
         return self.aug_crop(read_img(x) / 255, read_img(y).type(torch.long))
 
 if __name__ == "__main__":
+    test_dataset(ShapeNetPart)
     # for testing
-    config = {"data":"VOC2012", "train_val_test_ratio":[0.8, 0.1, 0.1], "exp_name":"test"}
-    seg = ImgSeg("train", config)
-    x, y = seg[42]
-    for i in range(y.shape[1]):
-        for j in range(y.shape[2]):
-            if y[0, i, j] == 44:
-                x[:, i, j] = 0
-    plt.imshow(x.permute(1, 2, 0))
-    plt.show()
-    print(x.shape)
-    print(y.shape)
+    # config = {"data":"VOC2012", "train_val_test_ratio":[0.8, 0.1, 0.1], "exp_name":"test"}
+    # seg = ImgSeg("train", config)
+    # x, y = seg[42]
+    # for i in range(y.shape[1]):
+    #     for j in range(y.shape[2]):
+    #         if y[0, i, j] == 44:
+    #             x[:, i, j] = 0
+    # plt.imshow(x.permute(1, 2, 0))
+    # plt.show()
+    # print(x.shape)
+    # print(y.shape)
