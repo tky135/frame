@@ -10,6 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 from model import *
+from model_pct import *
 from autoregress_model import *
 from util import *
 from data import *
@@ -219,12 +220,6 @@ def val(config, log, in_model, val_loader):
             # forward pass
             y_pred = model(*xx)
             for metric in [config["arg_from_data"]["loss_fn"]] + config["arg_from_data"]["val_metric_list"]:
-                # if isinstance(y_pred, torch.Tensor):
-                #     acc = metric(y_pred, *yy)
-                # else:
-                #     # assuming y_pred is either a tensor or a tuple(list)
-                #     acc = metric(*y_pred, *yy)
-                
                 acc = metric(y_pred, *yy) if isinstance(y_pred, torch.Tensor) else metric(*y_pred, *yy)
                 if metric.__name__ not in avg_metrics:
                     avg_metrics[metric.__name__] = acc.item() * b
@@ -359,16 +354,6 @@ if __name__ == "__main__":
             continue
         config[arg_name] = eval(config[arg_name])
 
-    # arguments that might require second level evaluation
-    # req_eval_2 = ["metric_list"]
-    # for arg_name in req_eval_2:
-    #     new_list = []
-    #     for item in config[arg_name]:
-    #         if type(item) is str:
-    #             new_list.append(eval(item))
-    #         else:
-    #             new_list.append(item)
-    #     config[arg_name] = new_list
     # generate default exp_name for lazy users
     if not config["exp_name"] or config["exp_name"] == "default":
         config["exp_name"] = config["model"].__name__ + "_" + config["data"].__name__ + "_" + str(datetime.date.today())
