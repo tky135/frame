@@ -91,6 +91,7 @@ def train(config, log):
             #     loss = config["arg_from_data"]["loss_fn"](y_pred, *yy)
             # else:
             #     loss = config["arg_from_data"]["loss_fn"](*y_pred, *yy)
+            
             loss = config["arg_from_data"]["loss_fn"](y_pred, *yy) if isinstance(y_pred, torch.Tensor) else config["arg_from_data"]["loss_fn"](*y_pred, *yy)
             all_metrics["train"][config["arg_from_data"]["loss_fn"].__name__][-1] += loss.item() * b
             # backward pass
@@ -158,9 +159,9 @@ def train(config, log):
         log.flush()
 
     # end of training
-    model = model.cpu()
-    model.module.sample()
-    # model.module.display(24*24, train_loader)
+    # model = model.cpu()
+    # model.module.sample()
+    # # model.module.display(24*24, train_loader)
     fig = plt.figure()
     # combine train & val metrics into a single plot
     metric_plot = {}
@@ -223,6 +224,7 @@ def val(config, log, in_model, val_loader):
                 # else:
                 #     # assuming y_pred is either a tensor or a tuple(list)
                 #     acc = metric(*y_pred, *yy)
+                
                 acc = metric(y_pred, *yy) if isinstance(y_pred, torch.Tensor) else metric(*y_pred, *yy)
                 if metric.__name__ not in avg_metrics:
                     avg_metrics[metric.__name__] = acc.item() * b

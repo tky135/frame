@@ -1,7 +1,7 @@
 #### general
 data:
   # VOC2012, AutoRegress
-  ModelNet10
+  ShapeNetPart
 exp_type:
   train
 do_split:
@@ -9,7 +9,7 @@ do_split:
   False
 model:
   # smooth_histogram, FCN, mixture_logistics
-  TestPointNet
+  TestPCSeg
 dataroot:
   /data
 

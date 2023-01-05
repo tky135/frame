@@ -13,6 +13,7 @@ def CEloss(y_pred, y):
     # y[y == 255] = 21 ### Tesing
 
     ### MUST MAKE SURE THE SHAPES ARE CORRECT
+    y_pred = y_pred.permute(0, 2, 1)
     z = torch.nn.functional.cross_entropy(y_pred, y)
     if z == torch.inf:
         print("y_pred: ")
@@ -38,6 +39,7 @@ def class_acc(y_pred: torch.Tensor, y: torch.Tensor):
     y     : Tensor, ground truth with shape [B, D1, D2, D3]
 
     """
+    y_pred = y_pred.permute(0, 2, 1)
     z = torch.sum((torch.max(y_pred, dim=1)[1] == y)) / y.flatten().shape[0]
 
     return z
@@ -71,3 +73,22 @@ def calculate_shape_IoU_np(y_pred, y):
             part_ious.append(iou)
         batch_ious.append(np.mean(part_ious)) # part IoU averaged
     return np.mean(batch_ious)
+
+
+def instance_average_IoU(y_pred, y):
+    # y_pred [B, C, D1, D2, ..., Dn]
+    # y [B, D1, D2, ..., Dn]
+    y_pred = y_pred.permute(0, 2, 1)
+    y_pred = torch.argmax(y_pred, dim=1)
+    B = y_pred.shape[0]
+    batch_ious = []
+    for b in range(B):
+        part_set = torch.unique(y[b])
+        part_ious = []
+        for part in part_set:
+            I = torch.sum(torch.logical_and(y_pred[b] == part, y[b] == part))
+            U = torch.sum(torch.logical_or(y_pred[b] == part, y[b] == part))
+            iou = I / float(U)
+            part_ious.append(iou)
+        batch_ious.append(torch.mean(torch.stack(part_ious))) # part IoU averaged
+    return torch.mean(torch.stack(batch_ious))

@@ -24,13 +24,9 @@ import pickle
 class csvDataset(Dataset):
     fmt = "csv"
     def __init__(self, partition, config) -> None:
-        print(super().__init__)
-        print(type(self).__mro__)
-        print(super(csvDataset, self).__init__)
         super().__init__()
         self.partition = partition
         self.config = config
-        print(config)
         # get self.path
         if "data_path" in config["arg_from_data"] and config["arg_from_data"]["data_path"] is not None and os.path.isdir(config["arg_from_data"]["data_path"]):
             self.path = config["arg_from_data"]["data_path"]
@@ -43,13 +39,12 @@ class csvDataset(Dataset):
                 raise Exception("Path Not Found")
         
         # loading self.dict_store if exists
-        self.dict_store = os.path.join(self.path, "dict_store.json")
+        self.dict_store = os.path.join(self.path, "dict_store.txt")
         self.dict = {}
         if os.path.exists(self.dict_store):
-            self.dict = json.load(open(self.dict_store))
-
+            self.dict = eval(open(self.dict_store).read())
         # generate partition.csv if not exist
-        if not os.path.exists(os.path.join(self.path, self.partition + ".csv")):
+        if not os.path.exists(os.path.join(self.path, self.partition + ".csv")) or config["do_split"] == True:
             if hasattr(self, "list_" + self.partition + "_data"):
                 xs_list = getattr(self, "list_" + self.partition + "_data")()
                 partition_csv = open(os.path.join(self.path, self.partition + ".csv"), "w")
@@ -61,13 +56,12 @@ class csvDataset(Dataset):
 
             # if do_split is set to True, or no valid csv file, split the dataset
             else:
-                if config["do_split"] == True:
-                    print("WARNING: " + os.path.join(self.path, partition + ".csv") + " does not exist and method list_" + self.partition + "_data is not defined, do split?(May overwrite other existing csv)(y/n)", file=sys.stderr)
-                    user = input()
-                    if user not in ["y", "Y"]:
-                        raise Exception("Canceled")
-                    self._split_train_val_test_csv()
-                    config["do_split"] = False  # only do_split once in one experiment
+                print("WARNING: " + os.path.join(self.path, partition + ".csv") + " does not exist and method list_" + self.partition + "_data is not defined, do split?(May overwrite other existing csv)(y/n)", file=sys.stderr)
+                user = input()
+                if user not in ["y", "Y"]:
+                    raise Exception("Canceled")
+                self._split_train_val_test_csv()
+            config["do_split"] = False  # only do_split once in one experiment
         
         # read csv file into a dataframe
         
@@ -79,7 +73,7 @@ class csvDataset(Dataset):
 
         # store dictionary to dict_store
         # if not os.path.exists(self.dict_store):
-        json.dump(self.dict, open(self.dict_store, "w"))    # user can store information using self.dict
+        open(self.dict_store, "w").write(str(self.dict))   # user can store information using self.dict
     def __getitem__(self, index):
         # not considering partition for now
         return self.read_data(*(self.xs[index]))
@@ -262,7 +256,10 @@ class PCCls(csvDataset):
         pc = self._normalize(self._sample_pc_from_mesh(mesh, 1024))
         return torch.tensor(pc, dtype=torch.float32), self.dict[y]
 class PCSeg(csvDataset):
-    data_path = "/data/ShapeNetPart"
+    train_metric_list = [class_acc, instance_average_IoU]
+    val_metric_list = [class_acc, instance_average_IoU]
+    loss_fn = CEloss
+
     def __init__(self, partition, config) -> None:
         super().__init__(partition, config)
         return
@@ -282,12 +279,14 @@ class PCSeg(csvDataset):
         pc: np array with shape [n, 3]
         label: np array with shape [n]
         """
-        print(pc.shape, label.shape)
         assert pc.shape[0] == label.shape[0]
         n = pc.shape[0]
         indices = np.random.choice(n, num_samples, replace=False)
         return pc[indices], label[indices]
 class ShapeNetPart(PCSeg, csvDataset):
+    n_category = 50
+    data_path = "/data/ShapeNetPart"
+    n_inputs = 2
     def __init__(self, partition, config) -> None:
         super().__init__(partition, config)
 
@@ -353,8 +352,8 @@ class ShapeNetPart(PCSeg, csvDataset):
         x = np.loadtxt(x)
         y = np.loadtxt(y)
         x = self._normalize(x)
-        x, y = self._sample_pc_with_label(x, y, 1024)
-        y = y + self.dict["cat_start"][self.dict["int2str"][str(c)]] - 1
+        x, y = self._sample_pc_with_label(x, y, 512)
+        y = y + self.dict["cat_start"][self.dict["int2str"][c]] - 1
         # make one-hot vector
         c_one_hot = torch.zeros(self.dict["_counter"], dtype=torch.long)
         c_one_hot[c] = 1
@@ -365,17 +364,26 @@ class ShapeNetPart(PCSeg, csvDataset):
 def test_dataset(class_name):
     import inspect
     from torch.utils.data import DataLoader
+    import time
     config = {"data": class_name, "train_val_test_ratio": [0.8, 0.2, 0], "dataroot": "/foobar", "do_split": True}
     config["arg_from_data"] = dict([m for m in inspect.getmembers(class_name) if not (inspect.ismethod(m[1]) or m[0].startswith('_'))])     # risky, but let's keep it this way for now
     # __init__
     inst = class_name("train", config)
     # __getitem__
-    print(inst[0])
+    start_time = time.time()
+    for i in range(100):
+        if i == 55:
+            print(inst[i])
+        else:
+            inst[i]
+    end_time = time.time()
+    print("time for __getitem__:", (end_time - start_time) / 100)
     # data loader
     inst_loader = DataLoader(inst, 32, shuffle=True, drop_last=False, num_workers=8)
     for data in inst_loader:
         for d in data:
-            print(d.shape)
+            print(d.shape, end=", ")
+        print('\n')
         break
 class ModelNet10(PCCls):
     n_category = 10

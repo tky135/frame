@@ -154,7 +154,18 @@ class TestPCSeg(nn.Module):
     def __init__(self, n_category, **kwargs) -> None:
         super().__init__()
         self.linear1 = nn.Linear(3, 128)
-        
+        self.cat_encode = nn.Linear(16, 64)
+        self.linear2 = nn.Linear(128 + 128 + 64, n_category)
+    def forward(self, x, cat):
+        # change cat from long to float
+        cat = cat.float()
+        x = F.relu(self.linear1(x))
+        x_global = torch.max(x, 1)[0]
+        cat = self.cat_encode(cat)
+        x_global = torch.cat([x_global, cat], dim=1).unsqueeze(1).repeat(1, x.shape[1], 1)
+        x = torch.cat([x, x_global], dim=2)
+        x = self.linear2(x)
+        return x
 class Pct(nn.Module):
     def __init__(self, n_category=40, **kwargs):
         super(Pct, self).__init__()
